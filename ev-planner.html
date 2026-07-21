@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChargeWay </title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0E141B;
+    --surface: #171F29;
+    --surface-2: #1F2A38;
+    --line: #2A3542;
+    --text: #ECEFF3;
+    --muted: #8B96A8;
+    --lime: #B4F461;
+    --lime-dim: #7FA83F;
+    --coral: #FF6B5B;
+    --amber: #FFC15E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Arabic', 'Space Grotesk', sans-serif;
+    min-height:100vh;
+  }
+  .num{ font-family:'JetBrains Mono', monospace; font-feature-settings: "tnum"; }
+
+  header{
+    padding: 22px 28px 18px;
+    border-bottom: 1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .bolt{
+    width:30px;height:30px;border-radius:8px;
+    background: linear-gradient(160deg, var(--lime), var(--lime-dim));
+    display:flex;align-items:center;justify-content:center;
+    color:#0E141B; font-weight:700; font-size:16px;
+  }
+  .brand h1{ font-family:'Space Grotesk', sans-serif; font-size:19px; margin:0; letter-spacing:0.2px;}
+  .brand p{ margin:0; font-size:12px; color:var(--muted); }
+  .badge{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; color: var(--lime);
+    border:1px solid var(--lime-dim);
+    padding:4px 10px; border-radius:999px;
+    background: rgba(180,244,97,0.06);
+  }
+
+  .layout{
+    display:grid;
+    grid-template-columns: 340px 1fr;
+    gap:0;
+    min-height: calc(100vh - 78px);
+  }
+  @media (max-width: 880px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    padding: 22px;
+    border-left: 1px solid var(--line);
+    display:flex; flex-direction:column; gap:18px;
+    overflow-y:auto;
+  }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{
+    font-size:11px; color:var(--muted); letter-spacing:0.4px;
+    display:flex; justify-content:space-between;
+  }
+  input[type=text], select{
+    background: var(--surface-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:14px;
+    font-family:inherit;
+    outline:none;
+  }
+  input[type=text]:focus, select:focus{ border-color: var(--lime-dim); }
+  select{ appearance:none; }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:4px; border-radius:2px;
+    background: var(--line); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background: var(--lime); cursor:pointer; border:2px solid #0E141B;
+  }
+  .range-val{ color: var(--lime); font-family:'JetBrains Mono', monospace; }
+
+  .swap-row{ display:flex; align-items:center; gap:8px; }
+  .swap-btn{
+    background: var(--surface-2); border:1px solid var(--line);
+    color: var(--muted); width:30px; height:30px; border-radius:7px;
+    cursor:pointer; flex-shrink:0; font-size:13px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .swap-btn:hover{ color:var(--lime); border-color:var(--lime-dim); }
+  .stack{ display:flex; flex-direction:column; gap:10px; flex:1; }
+
+  .plan-btn{
+    margin-top:4px;
+    background: var(--lime);
+    color:#0E141B;
+    border:none;
+    padding:13px 16px;
+    border-radius:9px;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+    font-family:'Space Grotesk', sans-serif;
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+  .plan-btn:hover{ background:#c4ff7c; }
+  .plan-btn:active{ transform: scale(0.98); }
+  .plan-btn:disabled{ background: var(--surface-2); color:var(--muted); cursor:default; }
+
+  .status-msg{ font-size:12.5px; color:var(--muted); min-height:16px; }
+  .status-msg.err{ color: var(--coral); }
+
+  .divider{ height:1px; background:var(--line); margin:2px 0; }
+
+  .main{ display:flex; flex-direction:column; min-height:100%; }
+
+  #map{ width:100%; height: 42vh; min-height:260px; background:#131a22; }
+  .leaflet-container{ background:#131a22 !important; }
+
+  .soc-wrap{
+    padding: 22px 26px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .soc-header{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:8px;}
+  .soc-header h2{ font-family:'Space Grotesk', sans-serif; font-size:14px; margin:0; color:var(--text); letter-spacing:0.3px;}
+  .legend{ display:flex; gap:14px; font-size:11px; color:var(--muted); }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .dot{ width:7px;height:7px;border-radius:50%; display:inline-block; }
+
+  .empty{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:10px; color:var(--muted); text-align:center; padding:40px;
+  }
+  .empty .bolt-big{
+    width:52px;height:52px;border-radius:14px;
+    background: var(--surface-2); border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center; font-size:24px; color:var(--lime);
+  }
+  .empty h3{ color:var(--text); font-family:'Space Grotesk',sans-serif; font-weight:600; margin:0; font-size:16px;}
+  .empty p{ margin:0; font-size:13px; max-width:340px; line-height:1.6; }
+
+  .summary-row{
+    display:flex; gap:12px; flex-wrap:wrap; padding: 14px 26px 20px;
+  }
+  .stat{
+    background: var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 16px;
+    min-width:120px;
+    flex:1;
+  }
+  .stat .k{ font-size:10.5px; color:var(--muted); letter-spacing:0.4px; margin-bottom:6px;}
+  .stat .v{ font-family:'JetBrains Mono', monospace; font-size:19px; font-weight:600; }
+  .stat .v.warn{ color: var(--coral); }
+  .stat .v.ok{ color: var(--lime); }
+
+  .stops-list{ padding: 0 26px 26px; display:flex; flex-direction:column; gap:8px; }
+  .stop-item{
+    display:flex; align-items:center; gap:12px;
+    background:var(--surface); border:1px solid var(--line); border-radius:9px;
+    padding:11px 14px;
+  }
+  .stop-idx{
+    width:26px;height:26px;border-radius:7px; background:var(--surface-2);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--amber); flex-shrink:0;
+  }
+  .stop-info{ flex:1; }
+  .stop-info .name{ font-size:13px; font-weight:600; }
+  .stop-info .sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .stop-charge{ font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--lime); text-align:left; }
+
+  svg#socGraph{ width:100%; height:150px; display:block; }
+  .disclaimer{ font-size:10.5px; color:var(--muted); padding: 0 26px 18px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="bolt">⚡</div>
+    <div>
+      <h1>ChargeWay </h1>
+      <p>مخطط رحلات ذكي للسيارات الكهربائية</p>
+    </div>
+  </div>
+  
+  <a href="shop.html" style="text-decoration:none; color:#B4F461; font-family:'Space Grotesk',sans-serif; font-size:13px; border:1px solid #7FA83F; padding:7px 14px; border-radius:8px;"
+  >  المتجر</a>
+</header>
+
+<div class="layout">
+  <div class="panel">
+
+    <div class="field">
+      <label>السيارة</label>
+      <select id="carPreset">
+      </select>
+    </div>
+
+    <input type="hidden" id="battKwh" value="57.5">
+    <input type="hidden" id="consWh" value="145">
+    <div class="field" style="background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:9px 12px; flex-direction:row; align-items:center; justify-content:space-between;">
+      <label style="margin:0;">المدى الكامل (100%)</label>
+      <span class="range-val num" id="fullRangeVal">0 كم</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="stack">
+      <div class="field">
+        <label>من</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="origin" placeholder="مثال: القاهرة" style="flex:1;">
+          <button type="button" class="swap-btn" id="myLocBtn" title="استخدم موقعي الحالي">📍</button>
+        </div>
+      </div>
+      <div class="swap-row" style="justify-content:center; margin:-4px 0;">
+        <button class="swap-btn" id="swapBtn" title="تبديل">⇅</button>
+      </div>
+      <div class="field">
+        <label>إلى</label>
+        <input type="text" id="destination" placeholder="مثال: الإسكندرية">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>شحن البداية <span class="range-val" id="startPctVal">80%</span></label>
+      <input type="range" id="startPct" min="5" max="100" value="80">
+    </div>
+
+    <div class="field">
+      <label>حد الأمان الأدنى <span class="range-val" id="reservePctVal">10%</span></label>
+      <input type="range" id="reservePct" min="5" max="30" value="10">
+    </div>
+
+    <div class="field">
+      <label>هدف الشحن عند التوقف <span class="range-val" id="targetPctVal">80%</span></label>
+      <input type="range" id="targetPct" min="50" max="100" value="80">
+    </div>
+
+    <button class="plan-btn" id="planBtn">تخطيط الرحلة</button>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+
+  <div class="main">
+    <div id="map"></div>
+
+    <div id="resultsArea">
+      <div class="empty" id="emptyState">
+        <div class="bolt-big">⚡</div>
+        <h3>مفيش رحلة لسه</h3>
+        <p>حدّد سيارتك ونقطة البداية والوجهة، وهنحسبلك منحنى الشحن على طول الطريق وأماكن التوقف للشحن لو محتاجة.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const TOMTOM_KEY = 'BDle5pC37KAOZc6xqOz61iJHpGqaLI2Q';
+
+// ---------- Car presets ----------
+const CAR_PRESETS = [
+  {name:"Tesla Model 3 RWD", kwh:57.5, wh:145},
+  {name:"Tesla Model 3 Long Range", kwh:75, wh:150},
+  {name:"Tesla Model Y RWD", kwh:60, wh:160},
+  {name:"Tesla Model Y LR", kwh:75, wh:170},
+  {name:"Tesla Model S", kwh:100, wh:180},
+  {name:"Tesla Model X", kwh:100, wh:200},
+  {name:"Tesla Cybertruck", kwh:123, wh:250},
+  {name:"Hyundai Ioniq 5", kwh:72.6, wh:180},
+  {name:"Hyundai Ioniq 6", kwh:77.4, wh:150},
+  {name:"Hyundai Kona Electric", kwh:64.8, wh:155},
+  {name:"Kia EV6", kwh:77.4, wh:175},
+  {name:"Kia EV9", kwh:99.8, wh:210},
+  {name:"Kia Niro EV", kwh:64.8, wh:160},
+  {name:"Chevrolet Bolt EUV", kwh:65, wh:160},
+  {name:"BMW i4 eDrive40", kwh:80.7, wh:190},
+  {name:"BMW iX", kwh:105, wh:220},
+  {name:"BMW i3", kwh:42.2, wh:150},
+  {name:"Nissan Leaf e+", kwh:59, wh:180},
+  {name:"Nissan Ariya", kwh:87, wh:190},
+  {name:"MG4 Electric", kwh:61, wh:165},
+  {name:"MG ZS EV", kwh:70, wh:175},
+  {name:"BYD Atto 3", kwh:60.5, wh:160},
+  {name:"BYD Seal", kwh:82.5, wh:165},
+  {name:"BYD Han", kwh:85.4, wh:170},
+  {name:"BYD Dolphin", kwh:44.9, wh:150},
+  {name:"Volkswagen ID.3", kwh:58, wh:160},
+  {name:"Volkswagen ID.4", kwh:77, wh:180},
+  {name:"Volkswagen ID.7", kwh:86, wh:170},
+  {name:"Renault Zoe", kwh:52, wh:170},
+  {name:"Renault Megane E-Tech", kwh:60, wh:165},
+  {name:"Mercedes EQE", kwh:90.6, wh:190},
+  {name:"Mercedes EQS", kwh:107.8, wh:200},
+  {name:"Mercedes EQA", kwh:66.5, wh:180},
+  {name:"Audi Q4 e-tron", kwh:82, wh:195},
+  {name:"Audi e-tron GT", kwh:93.4, wh:210},
+  {name:"Porsche Taycan", kwh:93.4, wh:220},
+  {name:"Ford Mustang Mach-E", kwh:88, wh:190},
+  {name:"Ford F-150 Lightning", kwh:131, wh:260},
+  {name:"Volvo XC40 Recharge", kwh:78, wh:200},
+  {name:"Volvo EX30", kwh:64, wh:160},
+  {name:"Polestar 2", kwh:82, wh:185},
+  {name:"Fiat 500e", kwh:42, wh:150},
+  {name:"Peugeot e-208", kwh:51, wh:155},
+  {name:"Peugeot e-2008", kwh:54, wh:170},
+  {name:"Skoda Enyaq", kwh:82, wh:185},
+  {name:"Mini Cooper SE", kwh:32.6, wh:160},
+  {name:"Jaguar I-Pace", kwh:90, wh:220},
+  {name:"Rivian R1T", kwh:135, wh:270},
+  {name:"Rivian R1S", kwh:135, wh:280},
+  {name:"Lucid Air", kwh:112, wh:170},
+  {name:"GMC Hummer EV", kwh:212, wh:320},
+  {name:"Toyota bZ4X", kwh:71.4, wh:185},
+  {name:"Honda e", kwh:35.5, wh:170},
+  {name:"Mazda MX-30", kwh:35.5, wh:180},
+  {name:"Subaru Solterra", kwh:71.4, wh:190},
+  {name:"Cadillac Lyriq", kwh:102, wh:220},
+  {name:"Genesis GV60", kwh:77.4, wh:190},
+  {name:"XPeng P7", kwh:80.9, wh:165},
+  {name:"XPeng P7i", kwh:86.2, wh:165},
+  {name:"XPeng G3", kwh:66, wh:160},
+  {name:"XPeng G6", kwh:87.5, wh:160},
+  {name:"XPeng G9", kwh:98, wh:200},
+  {name:"XPeng P5", kwh:66, wh:150},
+  {name:"XPeng X9", kwh:101.5, wh:210},
+  {name:"XPeng Mona M03", kwh:62.2, wh:123.17},
+  {name:"XPeng Mona L03", kwh:66, wh:130.69},
+  {name:"NIO ET5", kwh:75, wh:165},
+  {name:"Smart #1", kwh:66, wh:175},
+];
+const carSelect = document.getElementById('carPreset');
+CAR_PRESETS.forEach((c,i)=>{
+  const o = document.createElement('option');
+  o.value = i; o.textContent = c.name;
+  carSelect.appendChild(o);
+});
+carSelect.addEventListener('change', ()=>{
+  const c = CAR_PRESETS[+carSelect.value];
+  document.getElementById('battKwh').value = c.kwh;
+  document.getElementById('consWh').value = c.wh;
+  updateFullRange();
+});
+// initialize with first car in the list
+carSelect.value = 0;
+document.getElementById('battKwh').value = CAR_PRESETS[0].kwh;
+document.getElementById('consWh').value = CAR_PRESETS[0].wh;
+
+function updateFullRange(){
+  const kwh = parseFloat(document.getElementById('battKwh').value);
+  const wh = parseFloat(document.getElementById('consWh').value);
+  const out = document.getElementById('fullRangeVal');
+  if(kwh > 0 && wh > 0){
+    const km = (kwh * 1000) / wh;
+    out.textContent = km.toFixed(0) + ' كم';
+  } else {
+    out.textContent = '0 كم';
+  }
+}
+document.getElementById('battKwh').addEventListener('input', updateFullRange);
+document.getElementById('consWh').addEventListener('input', updateFullRange);
+updateFullRange();
+
+// ---------- Slider bindings ----------
+function bindRange(id, valId, suffix){
+  const el = document.getElementById(id);
+  const out = document.getElementById(valId);
+  el.addEventListener('input', ()=> out.textContent = el.value + suffix);
+}
+bindRange('startPct','startPctVal','%');
+bindRange('reservePct','reservePctVal','%');
+bindRange('targetPct','targetPctVal','%');
+
+document.getElementById('swapBtn').addEventListener('click', ()=>{
+  const o = document.getElementById('origin');
+  const d = document.getElementById('destination');
+  const tmp = o.value; o.value = d.value; d.value = tmp;
+  myLocationCoords = null;
+});
+
+// ---------- My location ----------
+let myLocationCoords = null;
+const originInput = document.getElementById('origin');
+document.getElementById('myLocBtn').addEventListener('click', ()=>{
+  if(!navigator.geolocation){ setStatus('المتصفح مش بيدعم تحديد الموقع', true); return; }
+  setStatus('بنجيب موقعك الحالي...', false);
+  navigator.geolocation.getCurrentPosition((pos)=>{
+    myLocationCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'موقعي الحالي' };
+    originInput.value = 'موقعي الحالي';
+    setStatus('', false);
+  }, ()=>{
+    setStatus('مقدرناش نجيب موقعك، تأكد من إذن الموقع في المتصفح.', true);
+  }, { enableHighAccuracy:true, timeout:10000 });
+});
+originInput.addEventListener('input', ()=>{
+  if(originInput.value !== 'موقعي الحالي') myLocationCoords = null;
+});
+
+// ---------- Google Maps navigation ----------
+function buildGoogleMapsUrl(origin, dest, stops){
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lon}&destination=${dest.lat},${dest.lon}&travelmode=driving`;
+  if(stops && stops.length){
+    const wp = stops.map(s => `${s.point[0]},${s.point[1]}`).join('|');
+    url += `&waypoints=${encodeURIComponent(wp)}`;
+  }
+  return url;
+}
+
+// ---------- Map setup ----------
+const map = L.map('map', {zoomControl:true, attributionControl:true}).setView([26.8, 30.8], 6);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO',
+  maxZoom: 19
+}).addTo(map);
+
+let routeLayer = null;
+let stopMarkers = [];
+let chargerMarkers = [];
+
+function clearMapLayers(){
+  if(routeLayer){ map.removeLayer(routeLayer); routeLayer = null; }
+  stopMarkers.forEach(m=>map.removeLayer(m)); stopMarkers = [];
+  chargerMarkers.forEach(m=>map.removeLayer(m)); chargerMarkers = [];
+}
+
+function pinIcon(color, label){
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+            background:${color};border:2px solid #0E141B;display:flex;align-items:center;justify-content:center;
+            box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+            <span style="transform:rotate(45deg);font-size:11px;font-weight:700;color:#0E141B;font-family:JetBrains Mono, monospace;">${label}</span>
+           </div>`,
+    iconSize:[26,26], iconAnchor:[13,26]
+  });
+}
+function dotIcon(color){
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:10px;height:10px;border-radius:50%;background:${color};border:1.5px solid #0E141B;"></div>`,
+    iconSize:[10,10], iconAnchor:[5,5]
+  });
+}
+
+// ---------- Geocoding via TomTom ----------
+async function geocode(query){
+  const url = `https://api.tomtom.com/search/2/geocode/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=1`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('geocode_failed');
+  const data = await res.json();
+  if(!data.results || !data.results.length) throw new Error('not_found');
+  const r = data.results[0];
+  return { lat: r.position.lat, lon: r.position.lon, label: r.address ? r.address.freeformAddress : query };
+}
+
+// ---------- Routing via TomTom ----------
+async function getRoute(a, b){
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lon}:${b.lat},${b.lon}/json?key=${TOMTOM_KEY}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('route_failed');
+  const data = await res.json();
+  if(!data.routes || !data.routes.length) throw new Error('no_route');
+  const r = data.routes[0];
+  const coords = [];
+  r.legs.forEach(leg => leg.points.forEach(p => coords.push([p.latitude, p.longitude])));
+  return {
+    distanceKm: r.summary.lengthInMeters / 1000,
+    coords
+  };
+}
+
+// ---------- Haversine ----------
+function haversineKm(lat1, lon1, lat2, lon2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// build cumulative distance array along route coords
+function buildCumulative(coords){
+  const cum = [0];
+  for(let i=1;i<coords.length;i++){
+    const d = haversineKm(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+    cum.push(cum[i-1] + d);
+  }
+  return cum;
+}
+// find lat/lon at a given cumulative distance
+function pointAtDistance(coords, cum, targetKm){
+  if(targetKm <= 0) return coords[0];
+  if(targetKm >= cum[cum.length-1]) return coords[coords.length-1];
+  let lo=0, hi=cum.length-1;
+  while(lo<hi){
+    const mid=(lo+hi)>>1;
+    if(cum[mid] < targetKm) lo = mid+1; else hi = mid;
+  }
+  const i = Math.max(1, lo);
+  const d0=cum[i-1], d1=cum[i];
+  const t = d1>d0 ? (targetKm-d0)/(d1-d0) : 0;
+  const [lat0,lon0]=coords[i-1], [lat1,lon1]=coords[i];
+  return [lat0 + (lat1-lat0)*t, lon0 + (lon1-lon0)*t];
+}
+
+// ---------- Charging stations (TomTom category search) ----------
+async function fetchChargers(coords){
+  let minLat=90,maxLat=-90,minLon=180,maxLon=-180;
+  coords.forEach(([lat,lon])=>{
+    minLat=Math.min(minLat,lat); maxLat=Math.max(maxLat,lat);
+    minLon=Math.min(minLon,lon); maxLon=Math.max(maxLon,lon);
+  });
+  const centerLat = (minLat+maxLat)/2, centerLon = (minLon+maxLon)/2;
+  const url = `https://api.tomtom.com/search/2/categorySearch/electric vehicle station.json`
+    + `?key=${TOMTOM_KEY}&limit=60`
+    + `&topLeft=${maxLat},${minLon}&btmRight=${minLat},${maxLon}`
+    + `&lat=${centerLat}&lon=${centerLon}`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) return [];
+    const data = await res.json();
+    if(!data.results) return [];
+    return data.results
+      .filter(p => p.position && p.position.lat && p.position.lon)
+      .map(p => ({
+        name: (p.poi && p.poi.name) || 'محطة شحن',
+        lat: p.position.lat,
+        lon: p.position.lon
+      }));
+  }catch(e){
+    return [];
+  }
+}
+
+// ---------- Battery / stop planning ----------
+function planStops({distanceKm, battKwh, whPerKm, startPct, reservePct, targetPct}){
+  const usableFrac = (pct) => pct/100 * battKwh;
+  const kmPerPct = (battKwh*1000/whPerKm) / 100; // km range per 1% of battery
+
+  const legs = []; // {fromKm, toKm, startPct, endPct}
+  let posKm = 0;
+  let curPct = startPct;
+  const stops = []; // {atKm, arrivePct, chargeToPct}
+
+  let guard = 0;
+  while(true){
+    guard++;
+    if(guard > 30) break; // safety
+    const remaining = distanceKm - posKm;
+    const rangeLeftPct = curPct - reservePct;
+    const rangeLeftKm = rangeLeftPct * kmPerPct;
+
+    if(rangeLeftKm >= remaining - 1e-6){
+      // reach destination on this leg
+      const endPct = curPct - remaining / kmPerPct;
+      legs.push({fromKm:posKm, toKm:distanceKm, startPct:curPct, endPct: endPct});
+      break;
+    } else {
+      // need a stop: drive until reserve reached
+      const legKm = rangeLeftKm;
+      const stopAt = posKm + legKm;
+      legs.push({fromKm:posKm, toKm:stopAt, startPct:curPct, endPct:reservePct});
+      stops.push({atKm: stopAt, arrivePct: reservePct, chargeToPct: targetPct});
+      posKm = stopAt;
+      curPct = targetPct;
+    }
+  }
+  return { legs, stops };
+}
+
+// ---------- SoC Graph (SVG) ----------
+function drawSocGraph(legs, distanceKm, reservePct){
+  const svg = document.getElementById('socGraph');
+  const W = svg.clientWidth || 600, H = 150;
+  const padL = 34, padR = 14, padT = 14, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const x = km => padL + (km/distanceKm) * plotW;
+  const y = pct => padT + (1 - pct/100) * plotH;
+
+  let svgns = "http://www.w3.org/2000/svg";
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  // grid lines (25/50/75/100)
+  [0,25,50,75,100].forEach(p=>{
+    const line = document.createElementNS(svgns,'line');
+    line.setAttribute('x1', padL); line.setAttribute('x2', W-padR);
+    line.setAttribute('y1', y(p)); line.setAttribute('y2', y(p));
+    line.setAttribute('stroke', '#2A3542'); line.setAttribute('stroke-width','1');
+    svg.appendChild(line);
+    const t = document.createElementNS(svgns,'text');
+    t.setAttribute('x', 6); t.setAttribute('y', y(p)+3);
+    t.setAttribute('fill', '#8B96A8'); t.setAttribute('font-size','9');
+    t.setAttribute('font-family', "'JetBrains Mono', monospace");
+    t.textContent = p+'%';
+    svg.appendChild(t);
+  });
+
+  // reserve line
+  const rl = document.createElementNS(svgns,'line');
+  rl.setAttribute('x1', padL); rl.setAttribute('x2', W-padR);
+  rl.setAttribute('y1', y(reservePct)); rl.setAttribute('y2', y(reservePct));
+  rl.setAttribute('stroke', '#FF6B5B'); rl.setAttribute('stroke-width','1');
+  rl.setAttribute('stroke-dasharray','3,3');
+  svg.appendChild(rl);
+
+  // build path points: for each leg draw line from start to end, then vertical jump if charging
+  let d = '';
+  legs.forEach((leg, i)=>{
+    const x1 = x(leg.fromKm), y1 = y(leg.startPct);
+    const x2 = x(leg.toKm), y2 = y(leg.endPct);
+    if(i===0) d += `M ${x1} ${y1} `;
+    d += `L ${x2} ${y2} `;
+    // if not last leg, jump up (charging) - vertical line at same x
+    if(i < legs.length-1){
+      const nextStart = legs[i+1].startPct;
+      d += `L ${x2} ${y(nextStart)} `;
+    }
+  });
+
+  const path = document.createElementNS(svgns,'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill','none');
+  path.setAttribute('stroke','#B4F461');
+  path.setAttribute('stroke-width','2.5');
+  path.setAttribute('stroke-linejoin','round');
+  svg.appendChild(path);
+
+  // stop markers (amber dots at charging points)
+  legs.forEach((leg,i)=>{
+    if(i < legs.length-1){
+      const cx = x(leg.toKm);
+      const cy1 = y(leg.endPct);
+      const cy2 = y(legs[i+1].startPct);
+      [cy1,cy2].forEach(cy=>{
+        const c = document.createElementNS(svgns,'circle');
+        c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', 3.5);
+        c.setAttribute('fill', '#FFC15E');
+        svg.appendChild(c);
+      });
+    }
+  });
+
+  // start/end dots
+  const startDot = document.createElementNS(svgns,'circle');
+  startDot.setAttribute('cx', x(0)); startDot.setAttribute('cy', y(legs[0].startPct));
+  startDot.setAttribute('r', 4); startDot.setAttribute('fill', '#B4F461');
+  svg.appendChild(startDot);
+  const lastLeg = legs[legs.length-1];
+  const endDot = document.createElementNS(svgns,'circle');
+  endDot.setAttribute('cx', x(lastLeg.toKm)); endDot.setAttribute('cy', y(lastLeg.endPct));
+  endDot.setAttribute('r', 4); endDot.setAttribute('fill', '#ECEFF3');
+  svg.appendChild(endDot);
+}
+
+// ---------- Render results ----------
+function renderResults({distanceKm, legs, stops, battKwh, whPerKm, startPct, chargers, originLabel, destLabel, origin, dest}){
+  const area = document.getElementById('resultsArea');
+  const totalKwh = distanceKm * whPerKm / 1000;
+  const finalPct = legs[legs.length-1].endPct;
+  const finalOk = finalPct >= 0;
+
+  area.innerHTML = `
+    <div class="soc-wrap">
+      <div class="soc-header">
+        <h2>منحنى الشحن على طول الطريق</h2>
+        <div class="legend">
+          <span><span class="dot" style="background:#B4F461;"></span> نسبة الشحن</span>
+          <span><span class="dot" style="background:#FFC15E;"></span> نقطة شحن</span>
+          <span><span class="dot" style="background:#FF6B5B;"></span> الحد الأدنى</span>
+        </div>
+      </div>
+      <svg id="socGraph"></svg>
+    </div>
+    <div class="summary-row">
+      <div class="stat">
+        <div class="k">المسافة الكلية</div>
+        <div class="v num">${distanceKm.toFixed(0)} كم</div>
+      </div>
+      <div class="stat">
+        <div class="k">الطاقة المستهلكة</div>
+        <div class="v num">${totalKwh.toFixed(1)} kWh</div>
+      </div>
+      <div class="stat">
+        <div class="k">محطات الشحن اللازمة</div>
+        <div class="v num ${stops.length>0?'':'ok'}">${stops.length}</div>
+      </div>
+      <div class="stat">
+        <div class="k">الشحن عند الوصول</div>
+        <div class="v num ${finalOk?'ok':'warn'}">${finalOk ? finalPct.toFixed(0)+'%' : 'غير كافي'}</div>
+      </div>
+    </div>
+    <div style="padding: 0 26px 20px;">
+      <button id="startNavBtn" class="plan-btn" style="width:100%; background:#4C8BF5; color:#fff;">🧭 ابدأ الملاحة على Google Maps</button>
+    </div>
+    <div class="stops-list" id="stopsList"></div>
+    <div class="disclaimer">* تقدير مبسّط بناءً على استهلاك ثابت لكل كيلومتر — من غير حساب الطقس، الرياح، الارتفاعات، أو سرعة الطريق الفعلية. استخدمه كدليل تقريبي فقط.</div>
+  `;
+
+  document.getElementById('startNavBtn').addEventListener('click', ()=>{
+    window.open(buildGoogleMapsUrl(origin, dest, stops), '_blank');
+  });
+
+  const stopsList = document.getElementById('stopsList');
+  if(stops.length === 0){
+    stopsList.innerHTML = `<div class="stop-item"><div class="stop-idx" style="color:#B4F461;">✓</div>
+      <div class="stop-info"><div class="name">مفيش توقف للشحن لازم</div><div class="sub">الرحلة كلها على شحنة واحدة</div></div></div>`;
+  } else {
+    stops.forEach((s, i)=>{
+      const nearest = chargers.length ? nearestCharger(s.point, chargers) : null;
+      const div = document.createElement('div');
+      div.className = 'stop-item';
+      div.innerHTML = `
+        <div class="stop-idx">${i+1}</div>
+        <div class="stop-info">
+          <div class="name">${nearest ? nearest.name : 'نقطة شحن تقريبية'}</div>
+          <div class="sub">بعد ${s.atKm.toFixed(0)} كم من البداية</div>
+        </div>
+        <div class="stop-charge num">${s.arrivePct.toFixed(0)}% ← ${s.chargeToPct}%</div>
+      `;
+      stopsList.appendChild(div);
+    });
+  }
+
+  drawSocGraph(legs, distanceKm, +document.getElementById('reservePct').value);
+}
+
+function nearestCharger(point, chargers){
+  let best=null, bestD=Infinity;
+  chargers.forEach(c=>{
+    const d = haversineKm(point[0], point[1], c.lat, c.lon);
+    if(d < bestD){ bestD = d; best = c; }
+  });
+  return (best && bestD < 15) ? best : null;
+}
+
+// ---------- Main flow ----------
+const statusEl = document.getElementById('statusMsg');
+function setStatus(msg, isErr){
+  statusEl.textContent = msg || '';
+  statusEl.className = 'status-msg' + (isErr ? ' err' : '');
+}
+
+document.getElementById('planBtn').addEventListener('click', async ()=>{
+  const originQ = document.getElementById('origin').value.trim();
+  const destQ = document.getElementById('destination').value.trim();
+  const battKwh = parseFloat(document.getElementById('battKwh').value);
+  const whPerKm = parseFloat(document.getElementById('consWh').value);
+  const startPct = +document.getElementById('startPct').value;
+  const reservePct = +document.getElementById('reservePct').value;
+  const targetPct = +document.getElementById('targetPct').value;
+
+  if(!originQ || !destQ){ setStatus('من فضلك اكتب نقطة البداية والوجهة', true); return; }
+  if(!battKwh || !whPerKm){ setStatus('تأكد من بيانات السيارة', true); return; }
+  if(targetPct <= reservePct){ setStatus('هدف الشحن لازم يكون أكبر من حد الأمان', true); return; }
+
+  const btn = document.getElementById('planBtn');
+  btn.disabled = true;
+  setStatus('بنحدد الموقع...', false);
+
+  try{
+    let origin;
+    if(myLocationCoords && originQ === 'موقعي الحالي'){
+      origin = myLocationCoords;
+    } else {
+      origin = await geocode(originQ);
+    }
+    const dest = await geocode(destQ);
+    setStatus('بنحسب الطريق...', false);
+    const route = await getRoute(origin, dest);
+
+    setStatus('بندوّر على محطات شحن قريبة...', false);
+    const chargers = await fetchChargers(route.coords);
+
+    const { legs, stops } = planStops({
+      distanceKm: route.distanceKm, battKwh, whPerKm, startPct, reservePct, targetPct
+    });
+
+    // attach lat/lon points to stops
+    const cum = buildCumulative(route.coords);
+    stops.forEach(s => { s.point = pointAtDistance(route.coords, cum, s.atKm); });
+
+    // ---- draw map ----
+    clearMapLayers();
+    routeLayer = L.polyline(route.coords, {color:'#B4F461', weight:4, opacity:0.85}).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), {padding:[30,30]});
+
+    const startMarker = L.marker([origin.lat, origin.lon], {icon: pinIcon('#B4F461','')}).addTo(map);
+    const endMarker = L.marker([dest.lat, dest.lon], {icon: pinIcon('#ECEFF3','')}).addTo(map);
+    stopMarkers = [startMarker, endMarker];
+
+    stops.forEach((s,i)=>{
+      const m = L.marker(s.point, {icon: pinIcon('#FFC15E', String(i+1))})
+        .bindPopup(`توقف ${i+1}: وصول ${s.arrivePct.toFixed(0)}% — شحن حتى ${s.chargeToPct}%`)
+        .addTo(map);
+      stopMarkers.push(m);
+    });
+
+    chargers.forEach(c=>{
+      const m = L.marker([c.lat, c.lon], {icon: dotIcon('#4C8BF5')})
+        .bindPopup(c.name)
+        .addTo(map);
+      chargerMarkers.push(m);
+    });
+
+    renderResults({
+      distanceKm: route.distanceKm, legs, stops, battKwh, whPerKm, startPct,
+      chargers, originLabel: origin.label, destLabel: dest.label, origin, dest
+    });
+
+    setStatus('', false);
+  }catch(e){
+    console.error(e);
+    let msg = 'حصل خطأ، حاول تاني.';
+    if(e.message === 'not_found') msg = 'مقدرناش نلاقي أحد المكانين، جرّب اسم أدق.';
+    if(e.message === 'no_route' || e.message === 'route_failed') msg = 'مقدرناش نحسب طريق بين المكانين دول.';
+    setStatus(msg, true);
+  }finally{
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

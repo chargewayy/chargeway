@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>متجر Volt — سيارات كهربائية للبيع</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0E141B;
+    --surface: #171F29;
+    --surface-2: #1F2A38;
+    --line: #2A3542;
+    --text: #ECEFF3;
+    --muted: #8B96A8;
+    --lime: #B4F461;
+    --lime-dim: #7FA83F;
+    --coral: #FF6B5B;
+    --amber: #FFC15E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Arabic', 'Space Grotesk', sans-serif;
+    min-height:100vh;
+  }
+  .num{ font-family:'JetBrains Mono', monospace; font-feature-settings: "tnum"; }
+
+  header{
+    padding: 22px 28px 18px;
+    border-bottom: 1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .bolt{
+    width:30px;height:30px;border-radius:8px;
+    background: linear-gradient(160deg, var(--lime), var(--lime-dim));
+    display:flex;align-items:center;justify-content:center;
+    color:#0E141B; font-weight:700; font-size:16px;
+  }
+  .brand h1{ font-family:'Space Grotesk', sans-serif; font-size:19px; margin:0; letter-spacing:0.2px;}
+  .brand p{ margin:0; font-size:12px; color:var(--muted); }
+  .nav-link{
+    text-decoration:none; color:var(--lime); font-family:'Space Grotesk',sans-serif;
+    font-size:13px; border:1px solid var(--lime-dim); padding:7px 14px; border-radius:8px;
+  }
+
+  .wrap{ max-width:1100px; margin:0 auto; padding: 28px; }
+  .page-title{ margin: 0 0 6px; font-family:'Space Grotesk', sans-serif; font-size:22px; }
+  .page-sub{ margin:0 0 28px; color:var(--muted); font-size:13.5px; }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap:18px;
+  }
+  .card{
+    background: var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .card-img{
+    height:150px;
+    background: linear-gradient(135deg, var(--surface-2), #141C26);
+    display:flex; align-items:center; justify-content:center;
+    font-size:44px;
+    border-bottom:1px solid var(--line);
+  }
+  .card-body{ padding:16px 18px; display:flex; flex-direction:column; gap:8px; flex:1; }
+  .card-body h3{ margin:0; font-family:'Space Grotesk', sans-serif; font-size:16px; }
+  .specs{ display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+  .specs b{ color:var(--text); font-family:'JetBrains Mono', monospace; }
+  .price{
+    font-family:'JetBrains Mono', monospace; font-size:20px; font-weight:700; color:var(--lime);
+    margin-top:4px;
+  }
+  .badge-new{
+    align-self:flex-start;
+    font-size:10.5px; color:var(--amber); border:1px solid #a37b34; border-radius:999px;
+    padding:3px 10px; background:rgba(255,193,94,0.08);
+  }
+  .buy-btn{
+    margin-top:auto;
+    background: var(--lime); color:#0E141B; border:none;
+    padding:11px 14px; border-radius:9px; font-weight:700; font-size:14px;
+    cursor:pointer; font-family:'Space Grotesk', sans-serif;
+  }
+  .buy-btn:hover{ background:#c4ff7c; }
+
+  .empty-slot{
+    border:1.5px dashed var(--line);
+    border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:13px; text-align:center; padding:30px 16px;
+    min-height:260px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="bolt">⚡</div>
+    <div>
+      <h1>متجر Volt</h1>
+      <p>سيارات كهربائية للبيع</p>
+    </div>
+  </div>
+  <a href="ev-planner.html" class="nav-link">🧭 مخطط الرحلات</a>
+</header>
+
+<div class="wrap">
+  <h2 class="page-title">السيارات المتاحة</h2>
+  <p class="page-sub">تواصل معنا لمعرفة التفاصيل والمعاينة قبل الشراء.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-img">⚡🚗</div>
+      <div class="card-body">
+        <span class="badge-new">جديدة</span>
+        <h3>XPeng Mona M03</h3>
+        <div class="specs">
+          <span>البطارية: <b>62.2 kWh</b></span>
+          <span>المدى: <b>505 كم</b></span>
+        </div>
+        <div class="price">تواصل للسعر</div>
+        <button class="buy-btn">تواصل للشراء</button>
+      </div>
+    </div>
+
+    <div class="empty-slot">قريبًا سيارات إضافية…</div>
+  </div>
+</div>
+
+</body>
+</html>
