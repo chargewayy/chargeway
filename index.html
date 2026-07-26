@@ -136,6 +136,14 @@
   .main{ display:flex; flex-direction:column; min-height:100%; }
 
   #map{ width:100%; height: 42vh; min-height:260px; background:#131a22; }
+  body.nav-fullscreen #map{
+    position:fixed !important; top:0; left:0; right:0; bottom:0;
+    width:100vw !important; height:100vh !important; z-index:500;
+  }
+  body.nav-fullscreen header,
+  body.nav-fullscreen .panel,
+  body.nav-fullscreen #resultsArea,
+  body.nav-fullscreen footer{ display:none !important; }
   .leaflet-container{ background:#131a22 !important; }
 
   .soc-wrap{
@@ -282,17 +290,38 @@
   <div class="main" style="position:relative;">
     <div id="map"></div>
 
-    <div id="navPanel" style="display:none; position:absolute; top:12px; left:12px; right:12px; z-index:1000; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+    <div id="navPanel" style="display:none; position:fixed; top:12px; left:12px; right:12px; z-index:2000; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+      <div id="navCurrentStreet" style="font-size:11px; color:var(--muted); margin-bottom:8px;">📍 الشارع الحالي: —</div>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
         <div>
-          <div style="font-size:11px;color:var(--muted);" id="navNextLabel">التالي: —</div>
-          <div class="num" style="font-size:22px; font-weight:700; color:var(--lime);" id="navDist">-- كم</div>
+          <div id="navNextTurn" style="font-size:14.5px; color:var(--text); font-weight:700; font-family:'Space Grotesk',sans-serif;">استمر على الطريق الحالي</div>
+          <div class="num" id="navTurnDist" style="font-size:14px; color:var(--amber);">-- م</div>
         </div>
         <button id="endNavBtn" style="background:var(--coral); border:none; color:#fff; padding:9px 16px; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif; flex-shrink:0;">إنهاء</button>
       </div>
+      <div style="height:1px; background:var(--line); margin:10px 0;"></div>
+      <div style="display:flex; justify-content:space-between; text-align:center;">
+        <div style="flex:1;">
+          <div style="font-size:10px;color:var(--muted);">المتبقي</div>
+          <div class="num" id="navRemainKm" style="font-size:15px; font-weight:700;">-- كم</div>
+        </div>
+        <div style="flex:1; border-right:1px solid var(--line); border-left:1px solid var(--line);">
+          <div style="font-size:10px;color:var(--muted);">الوقت</div>
+          <div class="num" id="navRemainTime" style="font-size:15px; font-weight:700;">--</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:10px;color:var(--muted);">هنوصل الساعة</div>
+          <div class="num" id="navEta" style="font-size:15px; font-weight:700; color:var(--lime);">--:--</div>
+        </div>
+      </div>
+      <div style="height:1px; background:var(--line); margin:10px 0;"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:11px;color:var(--muted);" id="navNextLabel">التالي: —</div>
+        <div class="num" style="font-size:16px; font-weight:700; color:var(--lime);" id="navDist">-- كم</div>
+      </div>
     </div>
 
-    <div id="navToast" style="display:none; position:absolute; bottom:16px; left:16px; right:16px; z-index:1000; background:var(--amber); color:#0E141B; padding:12px 16px; border-radius:10px; font-weight:700; text-align:center; font-family:'Space Grotesk',sans-serif; box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
+    <div id="navToast" style="display:none; position:fixed; bottom:16px; left:16px; right:16px; z-index:2000; background:#1A73E8; color:#fff; padding:14px 18px; border-radius:14px; font-weight:700; text-align:right; font-family:'Space Grotesk',sans-serif; font-size:14.5px; line-height:1.5; box-shadow:0 10px 30px rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15);"></div>
 
     <div id="resultsArea">
       <div class="empty" id="emptyState">
@@ -454,10 +483,18 @@ originInput.addEventListener('input', ()=>{
 
 // ---------- In-app navigation ----------
 let navWatchId = null;
-let navWaypoints = [];
+let navWaypoints = [];       // stops + destination, for arrival alerts (200m/100m)
 let navIndex = 0;
 let navAlertState = {};
 let currentPosMarker = null;
+
+let navRouteCoords = [];     // current guidance route polyline
+let navCumulative = [];      // cumulative km along navRouteCoords
+let navInstructions = [];    // [{offsetM, street, message}]
+let navRerouting = false;
+let navTotalDistanceKm = 0;
+let navTotalTimeSec = 0;
+let navLastRerouteAt = 0;
 
 function currentPosIcon(){
   return L.divIcon({
@@ -479,15 +516,104 @@ function showNavToast(msg){
   showNavToast._t = setTimeout(()=>{ el.style.display = 'none'; }, 4500);
 }
 
+function playNavBeep(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  }catch(e){ /* audio not available, ignore */ }
+}
+
 function fireNavAlert(msg){
   showNavToast(msg);
   if(navigator.vibrate) navigator.vibrate([200,80,200]);
+  playNavBeep();
+  if(window.Notification && Notification.permission === 'granted'){
+    try{ new Notification('ChargeWay', { body: msg, silent:true }); }catch(e){ /* ignore */ }
+  }
 }
 
 function updateNavPanel(wp, distM){
   document.getElementById('navNextLabel').textContent =
     'التالي: ' + (wp.kind === 'stop' ? 'محطة شحن' : 'الوجهة');
   document.getElementById('navDist').textContent = fmtDist(distM);
+}
+
+// find index of the nearest point on navRouteCoords to (lat,lon), and the distance to it in meters
+function nearestRoutePoint(lat, lon){
+  let bestIdx = 0, bestDist = Infinity;
+  for(let i=0;i<navRouteCoords.length;i++){
+    const d = haversineKm(lat, lon, navRouteCoords[i][0], navRouteCoords[i][1]);
+    if(d < bestDist){ bestDist = d; bestIdx = i; }
+  }
+  return { idx: bestIdx, distM: bestDist * 1000 };
+}
+
+function updateTurnByTurn(traveledM){
+  let current = null, next = null;
+  for(let i=0;i<navInstructions.length;i++){
+    if(navInstructions[i].offsetM <= traveledM) current = navInstructions[i];
+    else { next = navInstructions[i]; break; }
+  }
+  document.getElementById('navCurrentStreet').textContent =
+    '📍 الشارع الحالي: ' + (current && current.street ? current.street : '—');
+  if(next){
+    document.getElementById('navNextTurn').textContent = next.message || (next.street ? 'اتجه نحو ' + next.street : 'استمر على الطريق');
+    document.getElementById('navTurnDist').textContent = 'بعد ' + fmtDist(Math.max(0, next.offsetM - traveledM));
+  } else {
+    document.getElementById('navNextTurn').textContent = 'استمر على الطريق حتى الوجهة';
+    document.getElementById('navTurnDist').textContent = '';
+  }
+
+  if(navTotalDistanceKm > 0){
+    const remainKm = Math.max(0, navTotalDistanceKm - traveledM/1000);
+    const frac = remainKm / navTotalDistanceKm;
+    const remainSec = navTotalTimeSec * frac;
+    document.getElementById('navRemainKm').textContent = remainKm.toFixed(0) + ' كم';
+    const mins = Math.round(remainSec / 60);
+    document.getElementById('navRemainTime').textContent = mins >= 60
+      ? Math.floor(mins/60) + 'س ' + (mins%60) + 'د'
+      : mins + ' د';
+    const eta = new Date(Date.now() + remainSec*1000);
+    const h = eta.getHours().toString().padStart(2,'0');
+    const m = eta.getMinutes().toString().padStart(2,'0');
+    document.getElementById('navEta').textContent = h + ':' + m;
+  }
+}
+
+async function rerouteFromCurrentPosition(lat, lon){
+  if(navRerouting) return;
+  const now = Date.now();
+  if(now - navLastRerouteAt < 8000) return; // avoid rapid repeated reroutes
+  navRerouting = true;
+  navLastRerouteAt = now;
+  try{
+    showNavToast('بعيد عن المسار، جاري إعادة التوجيه...');
+    const remaining = navWaypoints.slice(navIndex).map(w => ({lat:w.lat, lon:w.lon}));
+    if(remaining.length === 0) return;
+    const viaPoints = [{lat, lon}, ...remaining];
+    const newRoute = await getRouteWithGuidance(viaPoints);
+    navRouteCoords = newRoute.coords;
+    navCumulative = buildCumulative(navRouteCoords);
+    navInstructions = newRoute.instructions;
+    navTotalDistanceKm = newRoute.distanceKm;
+    navTotalTimeSec = newRoute.totalTimeSec;
+
+    if(routeLayer) map.removeLayer(routeLayer);
+    routeLayer = L.polyline(navRouteCoords, {color:'#B4F461', weight:4, opacity:0.85}).addTo(map);
+  }catch(e){
+    showNavToast('تعذّرت إعادة التوجيه، هنكمل بالمسار الحالي.');
+  }finally{
+    navRerouting = false;
+  }
 }
 
 function onNavPosition(pos){
@@ -498,6 +624,16 @@ function onNavPosition(pos){
     currentPosMarker.setLatLng([lat,lon]);
   }
   map.panTo([lat,lon]);
+
+  if(navRouteCoords.length && !navRerouting){
+    const { idx, distM: offRouteM } = nearestRoutePoint(lat, lon);
+    if(offRouteM > 60){
+      rerouteFromCurrentPosition(lat, lon);
+    } else {
+      const traveledM = navCumulative[idx] * 1000;
+      updateTurnByTurn(traveledM);
+    }
+  }
 
   if(navIndex >= navWaypoints.length) return;
   const wp = navWaypoints[navIndex];
@@ -532,13 +668,37 @@ function onNavError(){
   showNavToast('مقدرناش نتتبع موقعك، تأكد من إذن الموقع.');
 }
 
-function startInAppNavigation(origin, dest, stops){
+async function startInAppNavigation(origin, dest, stops){
   navWaypoints = stops.map(s => ({lat:s.point[0], lon:s.point[1], kind:'stop'}))
     .concat([{lat:dest.lat, lon:dest.lon, kind:'dest'}]);
   navIndex = 0;
   navAlertState = {};
   if(!navigator.geolocation){ showNavToast('المتصفح مش بيدعم تتبع الموقع'); return; }
+  if(window.Notification && Notification.permission === 'default'){
+    try{ await Notification.requestPermission(); }catch(e){ /* ignore */ }
+  }
+
   document.getElementById('navPanel').style.display = 'block';
+  document.getElementById('navCurrentStreet').textContent = '📍 الشارع الحالي: جاري التحميل...';
+  document.getElementById('navNextTurn').textContent = 'جاري تجهيز الاتجاهات...';
+  document.getElementById('navTurnDist').textContent = '';
+
+  document.body.classList.add('nav-fullscreen');
+  setTimeout(()=> map.invalidateSize(), 150);
+
+  try{
+    const viaPoints = [origin, ...stops.map(s=>({lat:s.point[0], lon:s.point[1]})), dest];
+    const guided = await getRouteWithGuidance(viaPoints);
+    navRouteCoords = guided.coords;
+    navCumulative = buildCumulative(navRouteCoords);
+    navInstructions = guided.instructions;
+    navTotalDistanceKm = guided.distanceKm;
+    navTotalTimeSec = guided.totalTimeSec;
+  }catch(e){
+    showNavToast('مقدرناش نجيب الاتجاهات التفصيلية، هنكمل بدون أسامي شوارع.');
+    navRouteCoords = []; navCumulative = []; navInstructions = [];
+  }
+
   navWatchId = navigator.geolocation.watchPosition(onNavPosition, onNavError, {
     enableHighAccuracy:true, maximumAge:2000, timeout:15000
   });
@@ -549,6 +709,9 @@ function stopInAppNavigation(){
   document.getElementById('navPanel').style.display = 'none';
   document.getElementById('navToast').style.display = 'none';
   if(currentPosMarker){ map.removeLayer(currentPosMarker); currentPosMarker = null; }
+  navRouteCoords = []; navCumulative = []; navInstructions = [];
+  document.body.classList.remove('nav-fullscreen');
+  setTimeout(()=> map.invalidateSize(), 150);
 }
 
 document.getElementById('endNavBtn').addEventListener('click', stopInAppNavigation);
@@ -615,6 +778,31 @@ async function getRoute(a, b){
     coords
   };
 }
+
+// ---------- Routing with turn-by-turn guidance (for in-app navigation) ----------
+async function getRouteWithGuidance(points){
+  const coordStr = points.map(p => `${p.lat},${p.lon}`).join(':');
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${coordStr}/json?key=${TOMTOM_KEY}&instructionsType=text&language=ar`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('route_failed');
+  const data = await res.json();
+  if(!data.routes || !data.routes.length) throw new Error('no_route');
+  const r = data.routes[0];
+  const coords = [];
+  r.legs.forEach(leg => leg.points.forEach(p => coords.push([p.latitude, p.longitude])));
+  const instructions = (r.guidance && r.guidance.instructions) ? r.guidance.instructions.map(ins => ({
+    offsetM: ins.routeOffsetInMeters || 0,
+    street: ins.street || '',
+    message: ins.message || ''
+  })) : [];
+  return {
+    distanceKm: r.summary.lengthInMeters / 1000,
+    totalTimeSec: r.summary.travelTimeInSeconds || 0,
+    coords,
+    instructions
+  };
+}
+
 
 // ---------- Haversine ----------
 function haversineKm(lat1, lon1, lat2, lon2){
