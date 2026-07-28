@@ -90,6 +90,16 @@
   input[type=text]:focus, select:focus{ border-color: var(--lime-dim); }
   select{ appearance:none; }
 
+  .suggest-list{
+    display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
+    background: var(--surface-2); border:1px solid var(--line); border-radius:8px;
+    max-height:210px; overflow-y:auto; z-index:80;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4);
+  }
+  .suggest-item{ padding:10px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line); }
+  .suggest-item:last-child{ border-bottom:none; }
+  .suggest-item:hover{ background: var(--surface); color:var(--lime); }
+
   input[type=range]{
     -webkit-appearance:none; appearance:none;
     width:100%; height:4px; border-radius:2px;
@@ -240,7 +250,10 @@
       <div class="field">
         <label>من</label>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="origin" placeholder="مثال: القاهرة" style="flex:1;">
+          <div style="position:relative; flex:1;">
+            <input type="text" id="origin" placeholder="مثال: القاهرة" style="width:100%;" autocomplete="off">
+            <div id="originSuggest" class="suggest-list"></div>
+          </div>
           <button type="button" class="swap-btn" id="myLocBtn" title="استخدم موقعي الحالي">📍</button>
         </div>
       </div>
@@ -249,7 +262,10 @@
       </div>
       <div class="field">
         <label>إلى</label>
-        <input type="text" id="destination" placeholder="مثال: الإسكندرية">
+        <div style="position:relative;">
+          <input type="text" id="destination" placeholder="مثال: الإسكندرية" style="width:100%;" autocomplete="off">
+          <div id="destSuggest" class="suggest-list"></div>
+        </div>
       </div>
     </div>
 
@@ -460,25 +476,82 @@ document.getElementById('swapBtn').addEventListener('click', ()=>{
   const o = document.getElementById('origin');
   const d = document.getElementById('destination');
   const tmp = o.value; o.value = d.value; d.value = tmp;
-  myLocationCoords = null;
+  const tmpPick = pickedLocations.origin;
+  pickedLocations.origin = pickedLocations.destination;
+  pickedLocations.destination = tmpPick;
 });
 
-// ---------- My location ----------
-let myLocationCoords = null;
+// ---------- Place autocomplete (TomTom) + My location ----------
+let pickedLocations = { origin: null, destination: null };
 const originInput = document.getElementById('origin');
+const destinationInput = document.getElementById('destination');
+
+function debounce(fn, delay){
+  let t;
+  return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn(...args), delay); };
+}
+
+async function fetchSuggestions(query){
+  const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=5&language=ar-SA`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) return [];
+    const data = await res.json();
+    if(!data.results) return [];
+    return data.results.map(r => ({
+      label: r.address ? r.address.freeformAddress : query,
+      lat: r.position.lat, lon: r.position.lon
+    }));
+  }catch(e){ return []; }
+}
+
+function renderSuggestions(listEl, items, fieldKey, inputEl){
+  if(!items.length){ listEl.style.display = 'none'; listEl.innerHTML = ''; return; }
+  listEl.innerHTML = items.map((it,i) => `<div class="suggest-item" data-i="${i}">${it.label}</div>`).join('');
+  listEl.style.display = 'block';
+  Array.from(listEl.children).forEach((el, i) => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const it = items[i];
+      inputEl.value = it.label;
+      pickedLocations[fieldKey] = { lat: it.lat, lon: it.lon, label: it.label };
+      listEl.style.display = 'none';
+    });
+  });
+}
+
+function setupAutocomplete(inputEl, listEl, fieldKey){
+  const debounced = debounce(async () => {
+    const q = inputEl.value.trim();
+    if(q.length < 3){ listEl.style.display = 'none'; return; }
+    const items = await fetchSuggestions(q);
+    renderSuggestions(listEl, items, fieldKey, inputEl);
+  }, 350);
+
+  inputEl.addEventListener('input', () => {
+    if(pickedLocations[fieldKey] && inputEl.value !== pickedLocations[fieldKey].label){
+      pickedLocations[fieldKey] = null;
+    }
+    debounced();
+  });
+  inputEl.addEventListener('blur', () => {
+    setTimeout(() => { listEl.style.display = 'none'; }, 150);
+  });
+}
+
+setupAutocomplete(originInput, document.getElementById('originSuggest'), 'origin');
+setupAutocomplete(destinationInput, document.getElementById('destSuggest'), 'destination');
+
 document.getElementById('myLocBtn').addEventListener('click', ()=>{
   if(!navigator.geolocation){ setStatus('المتصفح مش بيدعم تحديد الموقع', true); return; }
   setStatus('بنجيب موقعك الحالي...', false);
   navigator.geolocation.getCurrentPosition((pos)=>{
-    myLocationCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'موقعي الحالي' };
+    pickedLocations.origin = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'موقعي الحالي' };
     originInput.value = 'موقعي الحالي';
     setStatus('', false);
   }, ()=>{
     setStatus('مقدرناش نجيب موقعك، تأكد من إذن الموقع في المتصفح.', true);
   }, { enableHighAccuracy:true, timeout:10000 });
-});
-originInput.addEventListener('input', ()=>{
-  if(originInput.value !== 'موقعي الحالي') myLocationCoords = null;
 });
 
 // ---------- In-app navigation ----------
@@ -685,6 +758,18 @@ async function startInAppNavigation(origin, dest, stops){
 
   document.body.classList.add('nav-fullscreen');
   setTimeout(()=> map.invalidateSize(), 150);
+
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition((pos)=>{
+      const lat = pos.coords.latitude, lon = pos.coords.longitude;
+      if(!currentPosMarker){
+        currentPosMarker = L.marker([lat,lon], {icon: currentPosIcon(), zIndexOffset: 1000}).addTo(map);
+      } else {
+        currentPosMarker.setLatLng([lat,lon]);
+      }
+      map.setView([lat,lon], 17);
+    }, ()=>{ /* ignore, watchPosition below will still handle it */ }, { enableHighAccuracy:true, timeout:8000 });
+  }
 
   try{
     const viaPoints = [origin, ...stops.map(s=>({lat:s.point[0], lon:s.point[1]})), dest];
@@ -1121,12 +1206,17 @@ document.getElementById('planBtn').addEventListener('click', async ()=>{
 
   try{
     let origin;
-    if(myLocationCoords && originQ === 'موقعي الحالي'){
-      origin = myLocationCoords;
+    if(pickedLocations.origin && originQ === pickedLocations.origin.label){
+      origin = pickedLocations.origin;
     } else {
       origin = await geocode(originQ);
     }
-    const dest = await geocode(destQ);
+    let dest;
+    if(pickedLocations.destination && destQ === pickedLocations.destination.label){
+      dest = pickedLocations.destination;
+    } else {
+      dest = await geocode(destQ);
+    }
     setStatus('بنحسب الطريق...', false);
     const route = await getRoute(origin, dest);
 
