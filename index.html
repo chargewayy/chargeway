@@ -492,17 +492,17 @@ function debounce(fn, delay){
 }
 
 async function fetchSuggestions(query){
-  const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=5&language=ar-SA`;
+  const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=6&typeahead=true`;
   try{
     const res = await fetch(url);
-    if(!res.ok) return [];
+    if(!res.ok){ console.error('suggest_failed', res.status, await res.text()); return []; }
     const data = await res.json();
     if(!data.results) return [];
     return data.results.map(r => ({
       label: r.address ? r.address.freeformAddress : query,
       lat: r.position.lat, lon: r.position.lon
     }));
-  }catch(e){ return []; }
+  }catch(e){ console.error('suggest_error', e); return []; }
 }
 
 function renderSuggestions(listEl, items, fieldKey, inputEl){
@@ -523,7 +523,7 @@ function renderSuggestions(listEl, items, fieldKey, inputEl){
 function setupAutocomplete(inputEl, listEl, fieldKey){
   const debounced = debounce(async () => {
     const q = inputEl.value.trim();
-    if(q.length < 3){ listEl.style.display = 'none'; return; }
+    if(q.length < 2){ listEl.style.display = 'none'; return; }
     const items = await fetchSuggestions(q);
     renderSuggestions(listEl, items, fieldKey, inputEl);
   }, 350);
