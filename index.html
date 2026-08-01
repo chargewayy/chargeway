@@ -428,6 +428,14 @@
         <div style="font-size:11px;color:var(--muted);" id="navNextLabel">التالي: —</div>
         <div class="num" style="font-size:16px; font-weight:700; color:var(--lime);" id="navDist">-- كم</div>
       </div>
+
+      <button id="navArriveBtn" style="display:none; width:100%; margin-top:10px; background:var(--lime); color:#0E141B; border:none; padding:10px; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif;">📍 وصلت للشاحن</button>
+
+      <div id="navChargingCard" style="display:none; margin-top:10px; background:var(--surface-2); border:1px solid var(--lime-dim); border-radius:10px; padding:12px; text-align:center;">
+        <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⚡ جاري الشحن</div>
+        <div class="num" id="navChargingTime" style="font-size:24px; font-weight:700; color:var(--lime);">--:--</div>
+        <button id="navFinishChargeBtn" style="margin-top:10px; width:100%; background:#4C8BF5; color:#fff; border:none; padding:9px; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif;">✅ خلصت الشحن، كمل الرحلة</button>
+      </div>
     </div>
 
     <div id="navToast" style="display:none; position:fixed; bottom:16px; left:16px; right:16px; z-index:2000; background:#1A73E8; color:#fff; padding:14px 18px; border-radius:14px; font-weight:700; text-align:right; font-family:'Space Grotesk',sans-serif; font-size:14.5px; line-height:1.5; box-shadow:0 10px 30px rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15);"></div>
@@ -929,6 +937,50 @@ function highlightNavTarget(){
   });
 }
 
+let navChargingInterval = null;
+
+function updateArriveButtonVisibility(){
+  const btn = document.getElementById('navArriveBtn');
+  const wp = navWaypoints[navIndex];
+  btn.style.display = (wp && wp.kind === 'stop') ? 'block' : 'none';
+}
+
+function updateChargingDisplay(sec){
+  const m = Math.floor(sec/60), s = sec%60;
+  document.getElementById('navChargingTime').textContent = m + ':' + s.toString().padStart(2,'0');
+}
+
+function showChargingScreen(){
+  const wp = navWaypoints[navIndex];
+  if(!wp || wp.kind !== 'stop') return;
+  document.getElementById('navArriveBtn').style.display = 'none';
+  document.getElementById('navChargingCard').style.display = 'block';
+  let remainingSec = Math.max(60, Math.round((wp.chargeMinutes || 15) * 60));
+  updateChargingDisplay(remainingSec);
+  clearInterval(navChargingInterval);
+  navChargingInterval = setInterval(()=>{
+    remainingSec -= 1;
+    if(remainingSec <= 0){
+      clearInterval(navChargingInterval);
+      remainingSec = 0;
+      fireNavAlert('🔋 الشحن المفروض يكون خلص دلوقتي');
+    }
+    updateChargingDisplay(remainingSec);
+  }, 1000);
+}
+
+function finishCharging(){
+  clearInterval(navChargingInterval);
+  document.getElementById('navChargingCard').style.display = 'none';
+  navIndex++;
+  navAlertState[navIndex - 1] = { a200:true, a100:true }; // don't re-alert for the stop just left
+  highlightNavTarget();
+  updateArriveButtonVisibility();
+}
+
+document.getElementById('navArriveBtn').addEventListener('click', showChargingScreen);
+document.getElementById('navFinishChargeBtn').addEventListener('click', finishCharging);
+
 function currentPosIcon(){
   return L.divIcon({
     className:'',
@@ -1087,14 +1139,15 @@ function onNavPosition(pos){
   }
   if(distM <= 30){
     if(wp.kind === 'stop'){
-      fireNavAlert('🔌 وصلت لمحطة الشحن — اشحن العربية واستكمل رحلتك');
+      if(document.getElementById('navChargingCard').style.display !== 'block'){
+        fireNavAlert('🔌 وصلت لمحطة الشحن');
+        showChargingScreen();
+      }
     } else {
       fireNavAlert('🎉 وصلت للوجهة');
       stopInAppNavigation();
       return;
     }
-    navIndex++;
-    highlightNavTarget();
   }
 }
 
@@ -1103,13 +1156,18 @@ function onNavError(){
 }
 
 async function startInAppNavigation(origin, dest, stops){
-  navWaypoints = stops.map(s => ({lat:s.point[0], lon:s.point[1], kind:'stop'}))
-    .concat([{lat:dest.lat, lon:dest.lon, kind:'dest'}]);
+  const battKwh = parseFloat(document.getElementById('battKwh').value) || 0;
+  const ASSUMED_CHARGE_KW = 50;
+  navWaypoints = stops.map(s => ({
+    lat:s.point[0], lon:s.point[1], kind:'stop',
+    chargeMinutes: ((s.chargeToPct - s.arrivePct)/100 * battKwh) / ASSUMED_CHARGE_KW * 60
+  })).concat([{lat:dest.lat, lon:dest.lon, kind:'dest'}]);
   navIndex = 0;
   navAlertState = {};
   // stopMarkers = [startMarker, endMarker, stop1, stop2, ...] -> align with navWaypoints order (stops..., dest)
   navTargetMarkers = stopMarkers.slice(2).concat([stopMarkers[1]]);
   highlightNavTarget();
+  updateArriveButtonVisibility();
   if(!navigator.geolocation){ showNavToast('المتصفح مش بيدعم تتبع الموقع'); return; }
   if(window.Notification && Notification.permission === 'default'){
     try{ await Notification.requestPermission(); }catch(e){ /* ignore */ }
@@ -1155,8 +1213,11 @@ async function startInAppNavigation(origin, dest, stops){
 
 function stopInAppNavigation(){
   if(navWatchId !== null){ navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
+  clearInterval(navChargingInterval);
   document.getElementById('navPanel').style.display = 'none';
   document.getElementById('navToast').style.display = 'none';
+  document.getElementById('navChargingCard').style.display = 'none';
+  document.getElementById('navArriveBtn').style.display = 'none';
   if(currentPosMarker){ map.removeLayer(currentPosMarker); currentPosMarker = null; }
   navRouteCoords = []; navCumulative = []; navInstructions = [];
   navTargetMarkers.forEach((m,i)=>{
