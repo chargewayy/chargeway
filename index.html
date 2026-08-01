@@ -212,6 +212,35 @@
 
   svg#socGraph{ width:100%; height:150px; display:block; }
   .disclaimer{ font-size:10.5px; color:var(--muted); padding: 0 26px 18px; line-height:1.6; }
+
+  .trip-sheet{
+    position:relative; margin-top:-22px; background:var(--surface);
+    border-radius:20px 20px 0 0; border:1px solid var(--line); border-bottom:none;
+    box-shadow:0 -12px 30px rgba(0,0,0,0.45); z-index:10; padding-bottom:16px;
+  }
+  .sheet-handle{ width:38px; height:4px; border-radius:3px; background:var(--line); margin:10px auto 8px; }
+  .sheet-title-row{ display:flex; align-items:center; justify-content:space-between; padding:2px 20px 14px; }
+  .sheet-title{ font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; }
+
+  .time-card{ margin:0 20px 14px; background:var(--surface-2); border-radius:14px; padding:16px; }
+  .time-main{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .time-main .big{ font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; }
+  .badge-rec{ font-size:10.5px; background:rgba(76,139,245,0.18); color:#4C8BF5; padding:4px 10px; border-radius:999px; font-family:'Space Grotesk',sans-serif; }
+  .time-chips{ display:flex; flex-wrap:wrap; gap:12px 16px; font-size:11.5px; color:var(--muted); }
+  .time-chips span{ display:inline-flex; align-items:center; gap:5px; }
+
+  .leg-card{ margin:0 20px; background:var(--surface-2); border-radius:12px; padding:13px 15px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .leg-card .l-name{ font-size:13.5px; font-weight:700; }
+  .leg-card .l-sub{ font-size:11px; color:var(--muted); margin-top:3px; }
+  .leg-card .l-batt{ font-size:12px; color:var(--lime); margin-top:6px; }
+  .leg-connector{ text-align:center; font-size:11px; color:var(--muted); padding:8px 0; }
+
+  .plan-actions-row{ display:flex; gap:10px; margin:16px 20px 4px; }
+  .plan-actions-row button{ flex:1; background:var(--surface-2); border:1px solid var(--line); color:var(--text); padding:11px; border-radius:10px; font-size:12.5px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font-family:'Space Grotesk',sans-serif; }
+
+  .bottom-actions{ display:flex; gap:10px; margin:16px 20px 4px; }
+  .bottom-actions .opt-btn{ flex:1; background:var(--surface-2); border:1px solid var(--line); color:var(--text); padding:13px; border-radius:12px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif; }
+  .bottom-actions .drive-btn{ flex:2; background:#fff; color:#0E141B; border:none; padding:13px; border-radius:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-size:14.5px; }
 </style>
 </head>
 <body>
@@ -1225,6 +1254,7 @@ async function getRoute(a, b){
   r.legs.forEach(leg => leg.points.forEach(p => coords.push([p.latitude, p.longitude])));
   return {
     distanceKm: r.summary.lengthInMeters / 1000,
+    totalTimeSec: r.summary.travelTimeInSeconds || 0,
     coords
   };
 }
@@ -1469,48 +1499,113 @@ function drawSocGraph(legs, distanceKm, reservePct){
 }
 
 // ---------- Render results ----------
-function renderResults({distanceKm, legs, stops, battKwh, whPerKm, startPct, chargers, originLabel, destLabel, origin, dest}){
+function fmtDuration(totalMinutes){
+  totalMinutes = Math.max(0, Math.round(totalMinutes));
+  if(totalMinutes < 60) return totalMinutes + ' د';
+  const h = Math.floor(totalMinutes/60), m = totalMinutes%60;
+  return h + 'س ' + (m>0 ? m+'د' : '');
+}
+
+function renderResults({distanceKm, totalTimeSec, legs, stops, battKwh, whPerKm, startPct, chargers, originLabel, destLabel, origin, dest}){
   const area = document.getElementById('resultsArea');
   const totalKwh = distanceKm * whPerKm / 1000;
   const finalPct = legs[legs.length-1].endPct;
   const finalOk = finalPct >= 0;
 
+  const ASSUMED_CHARGE_KW = 50;
+  const driveMinutesTotal = totalTimeSec > 0 ? totalTimeSec/60 : (distanceKm/80*60);
+  const chargeMinutesPerStop = stops.map(s => ((s.chargeToPct - s.arrivePct)/100 * battKwh) / ASSUMED_CHARGE_KW * 60);
+  const chargeMinutesTotal = chargeMinutesPerStop.reduce((a,b)=>a+b, 0);
+  const tripMinutesTotal = driveMinutesTotal + chargeMinutesTotal;
+
+  const now = new Date();
+  function clockAt(minutesFromNow){
+    const t = new Date(now.getTime() + minutesFromNow*60000);
+    return t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0');
+  }
+
+  // build leg cards (origin -> stop1 -> stop2 -> ... -> destination)
+  let elapsedMin = 0;
+  let legsHtml = `
+    <div class="leg-card">
+      <div>
+        <div class="l-name">📍 ${originLabel || 'نقطة البداية'}</div>
+        <div class="l-batt">🔋 ${startPct}%</div>
+      </div>
+    </div>`;
+
+  legs.forEach((leg, i)=>{
+    const legKm = leg.toKm - leg.fromKm;
+    const legMin = driveMinutesTotal * (legKm / distanceKm);
+    elapsedMin += legMin;
+    legsHtml += `<div class="leg-connector">↓ ${fmtDuration(legMin)} · ${legKm.toFixed(0)} كم</div>`;
+
+    if(i < legs.length - 1){
+      const s = stops[i];
+      const nearest = chargers.length ? nearestCharger(s.point, chargers) : null;
+      const chargeMin = chargeMinutesPerStop[i];
+      const arriveClock = clockAt(elapsedMin);
+      elapsedMin += chargeMin;
+      const arriveDisplay = s.arrivePct < 0
+        ? `<span style="color:var(--coral);">${s.arrivePct.toFixed(0)}%⚠️</span>`
+        : `${s.arrivePct.toFixed(0)}%`;
+      legsHtml += `
+        <div class="leg-card">
+          <div>
+            <div class="l-name">🔌 ${nearest ? nearest.name : 'محطة شحن على الطريق'}</div>
+            <div class="l-sub">شحن سريع تقريبي</div>
+            <div class="l-batt">${arriveDisplay} ← ${s.chargeToPct}% · ${fmtDuration(chargeMin)}</div>
+          </div>
+          <div class="num" style="font-size:12.5px; color:var(--muted); white-space:nowrap;">${arriveClock}</div>
+        </div>`;
+    } else {
+      const arriveClock = clockAt(elapsedMin);
+      legsHtml += `
+        <div class="leg-card">
+          <div>
+            <div class="l-name">🏁 ${destLabel || 'الوجهة'}</div>
+            <div class="l-batt ${finalOk?'':'warn'}" style="${finalOk?'':'color:var(--coral);'}">🔋 ${finalOk ? finalPct.toFixed(0)+'%' : 'غير كافي ⚠️'}</div>
+          </div>
+          <div class="num" style="font-size:12.5px; color:var(--muted); white-space:nowrap;">${arriveClock}</div>
+        </div>`;
+    }
+  });
+
   area.innerHTML = `
-    <div class="soc-wrap">
-      <div class="soc-header">
-        <h2>منحنى الشحن على طول الطريق</h2>
-        <div class="legend">
-          <span><span class="dot" style="background:#B4F461;"></span> نسبة الشحن</span>
-          <span><span class="dot" style="background:#FFC15E;"></span> نقطة شحن</span>
-          <span><span class="dot" style="background:#FF6B5B;"></span> الحد الأدنى</span>
+    <div class="trip-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row">
+        <div class="sheet-title">${destLabel || 'الوجهة'}</div>
+      </div>
+
+      <div class="time-card">
+        <div class="time-main">
+          <span class="big">${fmtDuration(tripMinutesTotal)}</span>
+          <span class="badge-rec">أفضل مسار</span>
+        </div>
+        <div class="time-chips">
+          <span>🚗 ${fmtDuration(driveMinutesTotal)}</span>
+          <span>🔋⚡ ${fmtDuration(chargeMinutesTotal)}</span>
+          <span>〰️ ${distanceKm.toFixed(0)} كم</span>
+          <span>🔌 ${stops.length} توقف</span>
+          <span>⚡ ${totalKwh.toFixed(1)} kWh</span>
         </div>
       </div>
-      <svg id="socGraph"></svg>
+
+      ${legsHtml}
+
+      <div class="plan-actions-row">
+        <button id="saveTripBtn">💾 حفظ الخطة</button>
+        <button id="sharePlanBtn">🔗 مشاركة الخطة</button>
+      </div>
+
+      <div class="bottom-actions">
+        <button class="opt-btn" id="optionsBtn">⚙️ خيارات</button>
+        <button class="drive-btn" id="startNavBtn">🧭 ابدأ</button>
+      </div>
+
+      <div class="disclaimer">* تقدير مبسّط بناءً على استهلاك ثابت لكل كيلومتر وقدرة شحن افتراضية — من غير حساب الطقس، الرياح، أو الازدحام الفعلي.</div>
     </div>
-    <div class="summary-row">
-      <div class="stat">
-        <div class="k">المسافة الكلية</div>
-        <div class="v num">${distanceKm.toFixed(0)} كم</div>
-      </div>
-      <div class="stat">
-        <div class="k">الطاقة المستهلكة</div>
-        <div class="v num">${totalKwh.toFixed(1)} kWh</div>
-      </div>
-      <div class="stat">
-        <div class="k">محطات الشحن اللازمة</div>
-        <div class="v num ${stops.length>0?'':'ok'}">${stops.length}</div>
-      </div>
-      <div class="stat">
-        <div class="k">الشحن عند الوصول</div>
-        <div class="v num ${finalOk?'ok':'warn'}">${finalOk ? finalPct.toFixed(0)+'%' : 'غير كافي'}</div>
-      </div>
-    </div>
-    <div style="padding: 0 26px 20px; display:flex; gap:10px;">
-      <button id="startNavBtn" class="plan-btn" style="flex:2; background:#4C8BF5; color:#fff;">🧭 ابدأ الملاحة</button>
-      <button id="saveTripBtn" class="plan-btn" style="flex:1; background:var(--surface-2); color:var(--lime); border:1px solid var(--lime-dim);">💾 حفظ</button>
-    </div>
-    <div class="stops-list" id="stopsList"></div>
-    <div class="disclaimer">* تقدير مبسّط بناءً على استهلاك ثابت لكل كيلومتر — من غير حساب الطقس، الرياح، الارتفاعات، أو سرعة الطريق الفعلية. استخدمه كدليل تقريبي فقط.</div>
   `;
 
   document.getElementById('startNavBtn').addEventListener('click', ()=>{
@@ -1521,33 +1616,23 @@ function renderResults({distanceKm, legs, stops, battKwh, whPerKm, startPct, cha
     saveCurrentTrip();
   });
 
-  const stopsList = document.getElementById('stopsList');
-  if(stops.length === 0){
-    stopsList.innerHTML = `<div class="stop-item"><div class="stop-idx" style="color:#B4F461;">✓</div>
-      <div class="stop-info"><div class="name">مفيش توقف للشحن لازم</div><div class="sub">الرحلة كلها على شحنة واحدة</div></div></div>`;
-  } else {
-    stops.forEach((s, i)=>{
-      const nearest = chargers.length ? nearestCharger(s.point, chargers) : null;
-      const kwhAdded = ((s.chargeToPct - s.arrivePct)/100 * battKwh).toFixed(1);
-      const arriveDisplay = s.arrivePct < 0
-        ? `<span style="color:var(--coral);">${s.arrivePct.toFixed(0)}%⚠️</span>`
-        : `${s.arrivePct.toFixed(0)}%`;
-      const div = document.createElement('div');
-      div.className = 'stop-item';
-      div.innerHTML = `
-        <div class="stop-idx">${i+1}</div>
-        <div class="stop-info">
-          <div class="name">${nearest ? nearest.name : 'نقطة شحن تقريبية'}</div>
-          <div class="sub">هتوصل بعد ${s.atKm.toFixed(0)} كم · إضافة ${kwhAdded} kWh</div>
-        </div>
-        <div class="stop-charge num">${arriveDisplay} ← ${s.chargeToPct}%</div>
-      `;
-      stopsList.appendChild(div);
-    });
-  }
+  document.getElementById('optionsBtn').addEventListener('click', ()=>{
+    document.querySelector('.panel').scrollIntoView({behavior:'smooth'});
+  });
 
-  drawSocGraph(legs, distanceKm, +document.getElementById('reservePct').value);
+  document.getElementById('sharePlanBtn').addEventListener('click', async ()=>{
+    const text = `رحلة من ${originLabel} إلى ${destLabel} — ${distanceKm.toFixed(0)} كم، ${fmtDuration(tripMinutesTotal)}، ${stops.length} توقف شحن.`;
+    if(navigator.share){
+      try{ await navigator.share({ title:'ChargeWay', text }); }catch(e){ /* cancelled */ }
+    } else {
+      try{
+        await navigator.clipboard.writeText(text);
+        setStatus('اتنسخت تفاصيل الرحلة', false);
+      }catch(e){ /* ignore */ }
+    }
+  });
 }
+
 
 function nearestCharger(point, chargers){
   let best=null, bestD=Infinity;
@@ -1664,7 +1749,7 @@ document.getElementById('planBtn').addEventListener('click', async ()=>{
     });
 
     renderResults({
-      distanceKm: route.distanceKm, legs, stops, battKwh, whPerKm, startPct,
+      distanceKm: route.distanceKm, totalTimeSec: route.totalTimeSec, legs, stops, battKwh, whPerKm, startPct,
       chargers, originLabel: origin.label, destLabel: dest.label, origin, dest
     });
 
