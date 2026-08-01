@@ -226,7 +226,40 @@
   </div>
   <span class="badge">تقدير تقريبي · بدون طقس أو ارتفاعات</span>
   <a href="shop.html" style="text-decoration:none; color:#B4F461; font-family:'Space Grotesk',sans-serif; font-size:13px; border:1px solid #7FA83F; padding:7px 14px; border-radius:8px;">🛒 المتجر</a>
+  <div id="userBox" style="display:none; align-items:center; gap:10px;">
+    <span id="userLabel" style="font-size:12.5px; color:var(--muted);"></span>
+    <button id="logoutBtn" style="background:var(--surface-2); border:1px solid var(--line); color:var(--muted); padding:7px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; font-family:'Space Grotesk',sans-serif;">خروج</button>
+  </div>
 </header>
+
+<div id="authOverlay" style="display:none; position:fixed; inset:0; z-index:5000; background:rgba(10,14,19,0.92); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:20px;">
+  <div style="width:100%; max-width:360px; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:26px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+      <div class="bolt">⚡</div>
+      <h1 style="font-family:'Space Grotesk',sans-serif; font-size:19px; margin:0;">ChargeWay</h1>
+    </div>
+
+    <div id="loginForm">
+      <h3 style="margin:0 0 14px; font-family:'Space Grotesk',sans-serif; font-size:15px;">تسجيل الدخول</h3>
+      <div class="field"><label>الإيميل أو رقم الهاتف</label><input type="text" id="loginId"></div>
+      <div class="field" style="margin-top:10px;"><label>كلمة المرور</label><input type="password" id="loginPass"></div>
+      <div class="status-msg err" id="loginErr"></div>
+      <button class="plan-btn" style="width:100%; margin-top:8px;" id="loginBtn">دخول</button>
+      <p style="text-align:center; font-size:12.5px; color:var(--muted); margin:14px 0 0;">مفيش حساب؟ <a href="#" id="goSignup" style="color:var(--lime);">أنشئ حساب</a></p>
+    </div>
+
+    <div id="signupForm" style="display:none;">
+      <h3 style="margin:0 0 14px; font-family:'Space Grotesk',sans-serif; font-size:15px;">إنشاء حساب</h3>
+      <div class="field"><label>الاسم</label><input type="text" id="signupName"></div>
+      <div class="field" style="margin-top:10px;"><label>رقم الهاتف</label><input type="text" id="signupPhone"></div>
+      <div class="field" style="margin-top:10px;"><label>الإيميل</label><input type="text" id="signupEmail"></div>
+      <div class="field" style="margin-top:10px;"><label>كلمة المرور</label><input type="password" id="signupPass"></div>
+      <div class="status-msg err" id="signupErr"></div>
+      <button class="plan-btn" style="width:100%; margin-top:8px;" id="signupBtn">إنشاء الحساب</button>
+      <p style="text-align:center; font-size:12.5px; color:var(--muted); margin:14px 0 0;">عندك حساب؟ <a href="#" id="goLogin" style="color:var(--lime);">دخول</a></p>
+    </div>
+  </div>
+</div>
 
 <div class="layout">
   <div class="panel">
@@ -301,6 +334,12 @@
 
     <button class="plan-btn" id="planBtn">تخطيط الرحلة</button>
     <div class="status-msg" id="statusMsg"></div>
+
+    <div class="divider"></div>
+    <div>
+      <label style="font-size:11px; color:var(--muted); letter-spacing:0.4px;">رحلاتي المحفوظة</label>
+      <div id="savedTripsList" style="display:flex; flex-direction:column; gap:6px; margin-top:8px;"></div>
+    </div>
   </div>
 
   <div class="main" style="position:relative;">
@@ -358,6 +397,173 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const TOMTOM_KEY = 'BDle5pC37KAOZc6xqOz61iJHpGqaLI2Q';
+
+// ---------- Accounts (localStorage-based, client-side only) ----------
+function getAccounts(){
+  try{ return JSON.parse(localStorage.getItem('chargeway_accounts') || '{}'); }catch(e){ return {}; }
+}
+function saveAccounts(obj){ localStorage.setItem('chargeway_accounts', JSON.stringify(obj)); }
+function getSession(){ return localStorage.getItem('chargeway_session'); }
+function setSession(key){ localStorage.setItem('chargeway_session', key); }
+function clearSession(){ localStorage.removeItem('chargeway_session'); }
+
+function showAuthOverlay(show){
+  document.getElementById('authOverlay').style.display = show ? 'flex' : 'none';
+}
+
+function refreshUserBox(){
+  const session = getSession();
+  const userBox = document.getElementById('userBox');
+  if(session){
+    const accounts = getAccounts();
+    const acc = accounts[session];
+    document.getElementById('userLabel').textContent = '👤 ' + (acc && acc.name ? acc.name : session);
+    userBox.style.display = 'flex';
+    showAuthOverlay(false);
+    renderSavedTrips();
+  } else {
+    userBox.style.display = 'none';
+    showAuthOverlay(true);
+  }
+}
+
+document.getElementById('goSignup').addEventListener('click', (e)=>{
+  e.preventDefault();
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('signupForm').style.display = 'block';
+});
+document.getElementById('goLogin').addEventListener('click', (e)=>{
+  e.preventDefault();
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+});
+
+document.getElementById('loginBtn').addEventListener('click', ()=>{
+  const id = document.getElementById('loginId').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  const accounts = getAccounts();
+  const key = Object.keys(accounts).find(k => k === id || accounts[k].phone === id);
+  if(!key || accounts[key].password !== pass){
+    errEl.textContent = 'بيانات الدخول غلط';
+    return;
+  }
+  setSession(key);
+  refreshUserBox();
+});
+
+document.getElementById('signupBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('signupName').value.trim();
+  const phone = document.getElementById('signupPhone').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const pass = document.getElementById('signupPass').value;
+  const errEl = document.getElementById('signupErr');
+  errEl.textContent = '';
+  if(!phone || !email || !pass){ errEl.textContent = 'من فضلك املأ كل الحقول'; return; }
+  const accounts = getAccounts();
+  if(accounts[email]){ errEl.textContent = 'الإيميل ده مسجل قبل كده'; return; }
+  accounts[email] = { name, phone, password: pass };
+  saveAccounts(accounts);
+  setSession(email);
+  refreshUserBox();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  clearSession();
+  refreshUserBox();
+});
+
+// ---------- Saved trips ----------
+function getTrips(){
+  const session = getSession();
+  if(!session) return [];
+  try{ return JSON.parse(localStorage.getItem('chargeway_trips_' + session) || '[]'); }catch(e){ return []; }
+}
+function saveTrips(list){
+  const session = getSession();
+  if(!session) return;
+  localStorage.setItem('chargeway_trips_' + session, JSON.stringify(list));
+}
+
+function saveCurrentTrip(){
+  const session = getSession();
+  if(!session) return;
+  const name = prompt('اسم الرحلة؟');
+  if(!name) return;
+  const trip = {
+    name,
+    carIndex: document.getElementById('carPreset').value,
+    battKwh: document.getElementById('battKwh').value,
+    consWh: document.getElementById('consWh').value,
+    origin: document.getElementById('origin').value,
+    destination: document.getElementById('destination').value,
+    startPct: document.getElementById('startPct').value,
+    reservePct: document.getElementById('reservePct').value,
+    targetPct: document.getElementById('targetPct').value,
+    stopCount: document.getElementById('stopCount').value,
+    originPicked: pickedLocations.origin,
+    destPicked: pickedLocations.destination
+  };
+  const trips = getTrips();
+  trips.push(trip);
+  saveTrips(trips);
+  renderSavedTrips();
+  setStatus('اتحفظت الرحلة "' + name + '"', false);
+}
+
+function loadTrip(trip){
+  document.getElementById('carPreset').value = trip.carIndex;
+  document.getElementById('battKwh').value = trip.battKwh;
+  document.getElementById('consWh').value = trip.consWh;
+  document.getElementById('origin').value = trip.origin;
+  document.getElementById('destination').value = trip.destination;
+  document.getElementById('startPct').value = trip.startPct;
+  document.getElementById('reservePct').value = trip.reservePct;
+  document.getElementById('targetPct').value = trip.targetPct;
+  document.getElementById('stopCount').value = trip.stopCount;
+  document.getElementById('startPctVal').textContent = trip.startPct + '%';
+  document.getElementById('reservePctVal').textContent = trip.reservePct + '%';
+  document.getElementById('targetPctVal').textContent = trip.targetPct + '%';
+  pickedLocations.origin = trip.originPicked || null;
+  pickedLocations.destination = trip.destPicked || null;
+  updateFullRange();
+  document.getElementById('planBtn').click();
+}
+
+function renderSavedTrips(){
+  const listEl = document.getElementById('savedTripsList');
+  const trips = getTrips();
+  if(!trips.length){
+    listEl.innerHTML = '<div style="font-size:12px; color:var(--muted);">لسه مفيش رحلات محفوظة</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  trips.forEach((trip, i)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:6px;';
+    const btn = document.createElement('button');
+    btn.textContent = '📍 ' + trip.name;
+    btn.style.cssText = 'flex:1; text-align:right; background:var(--surface-2); border:1px solid var(--line); color:var(--text); padding:9px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; font-family:inherit;';
+    btn.addEventListener('click', ()=> loadTrip(trip));
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.title = 'حذف';
+    del.style.cssText = 'background:var(--surface-2); border:1px solid var(--line); color:var(--coral); width:30px; height:30px; border-radius:8px; cursor:pointer; flex-shrink:0;';
+    del.addEventListener('click', ()=>{
+      const t = getTrips();
+      t.splice(i,1);
+      saveTrips(t);
+      renderSavedTrips();
+    });
+    row.appendChild(btn);
+    row.appendChild(del);
+    listEl.appendChild(row);
+  });
+}
+
+refreshUserBox();
+
 
 // ---------- Car presets ----------
 const CAR_PRESETS = [
@@ -492,16 +698,32 @@ function debounce(fn, delay){
 }
 
 async function fetchSuggestions(query){
-  const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=6&typeahead=true`;
-  try{
-    const res = await fetch(url);
-    if(!res.ok){ console.error('suggest_failed', res.status, await res.text()); return []; }
-    const data = await res.json();
-    if(!data.results) return [];
-    return data.results.map(r => ({
-      label: r.address ? r.address.freeformAddress : query,
+  const addressLabel = (addr) => {
+    if(!addr) return '';
+    if(addr.freeformAddress) return addr.freeformAddress;
+    return [addr.streetName, addr.municipality].filter(Boolean).join('، ');
+  };
+  const mapResult = r => {
+    const addr = addressLabel(r.address);
+    return {
+      label: (r.poi && r.poi.name) ? (r.poi.name + (addr ? ' — ' + addr : '')) : (addr || query),
       lat: r.position.lat, lon: r.position.lon
-    }));
+    };
+  };
+  const poiUrl = `https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=6&typeahead=true`;
+  const genUrl = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=6&typeahead=true`;
+  try{
+    const [poiRes, genRes] = await Promise.all([fetch(poiUrl), fetch(genUrl)]);
+    const poiData = poiRes.ok ? await poiRes.json() : {results:[]};
+    const genData = genRes.ok ? await genRes.json() : {results:[]};
+    const poiItems = (poiData.results || []).map(mapResult);
+    const genItems = (genData.results || []).map(mapResult);
+    const seen = new Set();
+    const merged = [];
+    [...poiItems, ...genItems].forEach(it=>{
+      if(!seen.has(it.label)){ seen.add(it.label); merged.push(it); }
+    });
+    return merged.slice(0, 8);
   }catch(e){ console.error('suggest_error', e); return []; }
 }
 
@@ -565,9 +787,20 @@ let navRouteCoords = [];     // current guidance route polyline
 let navCumulative = [];      // cumulative km along navRouteCoords
 let navInstructions = [];    // [{offsetM, street, message}]
 let navRerouting = false;
+let navTargetMarkers = [];
 let navTotalDistanceKm = 0;
 let navTotalTimeSec = 0;
 let navLastRerouteAt = 0;
+
+function highlightNavTarget(){
+  navTargetMarkers.forEach((m, i) => {
+    if(!m) return;
+    const isStop = i < navWaypoints.length - 1;
+    const label = isStop ? String(i+1) : '';
+    const baseColor = isStop ? '#FFC15E' : '#ECEFF3';
+    m.setIcon(pinIcon(i === navIndex ? '#FF3B30' : baseColor, label));
+  });
+}
 
 function currentPosIcon(){
   return L.divIcon({
@@ -734,6 +967,7 @@ function onNavPosition(pos){
       return;
     }
     navIndex++;
+    highlightNavTarget();
   }
 }
 
@@ -746,6 +980,9 @@ async function startInAppNavigation(origin, dest, stops){
     .concat([{lat:dest.lat, lon:dest.lon, kind:'dest'}]);
   navIndex = 0;
   navAlertState = {};
+  // stopMarkers = [startMarker, endMarker, stop1, stop2, ...] -> align with navWaypoints order (stops..., dest)
+  navTargetMarkers = stopMarkers.slice(2).concat([stopMarkers[1]]);
+  highlightNavTarget();
   if(!navigator.geolocation){ showNavToast('المتصفح مش بيدعم تتبع الموقع'); return; }
   if(window.Notification && Notification.permission === 'default'){
     try{ await Notification.requestPermission(); }catch(e){ /* ignore */ }
@@ -795,6 +1032,12 @@ function stopInAppNavigation(){
   document.getElementById('navToast').style.display = 'none';
   if(currentPosMarker){ map.removeLayer(currentPosMarker); currentPosMarker = null; }
   navRouteCoords = []; navCumulative = []; navInstructions = [];
+  navTargetMarkers.forEach((m,i)=>{
+    if(!m) return;
+    const isStop = i < navWaypoints.length - 1;
+    m.setIcon(pinIcon(isStop ? '#FFC15E' : '#ECEFF3', isStop ? String(i+1) : ''));
+  });
+  navTargetMarkers = [];
   document.body.classList.remove('nav-fullscreen');
   setTimeout(()=> map.invalidateSize(), 150);
 }
@@ -811,11 +1054,17 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 let routeLayer = null;
 let stopMarkers = [];
 let chargerMarkers = [];
+let restaurantMarkers = [];
+let hospitalMarkers = [];
+let shopMarkers = [];
 
 function clearMapLayers(){
   if(routeLayer){ map.removeLayer(routeLayer); routeLayer = null; }
   stopMarkers.forEach(m=>map.removeLayer(m)); stopMarkers = [];
   chargerMarkers.forEach(m=>map.removeLayer(m)); chargerMarkers = [];
+  restaurantMarkers.forEach(m=>map.removeLayer(m)); restaurantMarkers = [];
+  hospitalMarkers.forEach(m=>map.removeLayer(m)); hospitalMarkers = [];
+  shopMarkers.forEach(m=>map.removeLayer(m)); shopMarkers = [];
 }
 
 function pinIcon(color, label){
@@ -836,6 +1085,24 @@ function dotIcon(color){
     iconSize:[10,10], iconAnchor:[5,5]
   });
 }
+function poiIcon(emoji, color){
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:21px;height:21px;border-radius:50%;background:${color};border:1.5px solid #0E141B;
+           display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;">${emoji}</div>`,
+    iconSize:[21,21], iconAnchor:[10,10]
+  });
+}
+
+// static legend control on the map
+const mapLegend = L.control({position:'bottomright'});
+mapLegend.onAdd = function(){
+  const div = L.DomUtil.create('div');
+  div.style.cssText = 'background:rgba(23,31,41,0.92);border:1px solid #2A3542;border-radius:8px;padding:8px 10px;font-size:11px;color:#ECEFF3;font-family:"IBM Plex Sans Arabic",sans-serif;line-height:1.9;';
+  div.innerHTML = '🔌 شحن&nbsp;&nbsp;🍽 مطاعم&nbsp;&nbsp;🏥 مستشفيات&nbsp;&nbsp;🛍 محلات';
+  return div;
+};
+mapLegend.addTo(map);
 
 // ---------- Geocoding via TomTom ----------
 async function geocode(query){
@@ -924,17 +1191,21 @@ function pointAtDistance(coords, cum, targetKm){
 }
 
 // ---------- Charging stations (TomTom category search) ----------
-async function fetchChargers(coords){
+function bboxOf(coords){
   let minLat=90,maxLat=-90,minLon=180,maxLon=-180;
   coords.forEach(([lat,lon])=>{
     minLat=Math.min(minLat,lat); maxLat=Math.max(maxLat,lat);
     minLon=Math.min(minLon,lon); maxLon=Math.max(maxLon,lon);
   });
-  const centerLat = (minLat+maxLat)/2, centerLon = (minLon+maxLon)/2;
-  const url = `https://api.tomtom.com/search/2/categorySearch/electric vehicle station.json`
-    + `?key=${TOMTOM_KEY}&limit=60`
-    + `&topLeft=${maxLat},${minLon}&btmRight=${minLat},${maxLon}`
-    + `&lat=${centerLat}&lon=${centerLon}`;
+  return { minLat, maxLat, minLon, maxLon, centerLat:(minLat+maxLat)/2, centerLon:(minLon+maxLon)/2 };
+}
+
+async function fetchPOI(coords, categoryQuery, limit, fallbackName){
+  const bb = bboxOf(coords);
+  const url = `https://api.tomtom.com/search/2/categorySearch/${encodeURIComponent(categoryQuery)}.json`
+    + `?key=${TOMTOM_KEY}&limit=${limit}`
+    + `&topLeft=${bb.maxLat},${bb.minLon}&btmRight=${bb.minLat},${bb.maxLon}`
+    + `&lat=${bb.centerLat}&lon=${bb.centerLon}`;
   try{
     const res = await fetch(url);
     if(!res.ok) return [];
@@ -943,13 +1214,17 @@ async function fetchChargers(coords){
     return data.results
       .filter(p => p.position && p.position.lat && p.position.lon)
       .map(p => ({
-        name: (p.poi && p.poi.name) || 'محطة شحن',
+        name: (p.poi && p.poi.name) || fallbackName,
         lat: p.position.lat,
         lon: p.position.lon
       }));
   }catch(e){
     return [];
   }
+}
+
+async function fetchChargers(coords){
+  return fetchPOI(coords, 'electric vehicle station', 60, 'محطة شحن');
 }
 
 // ---------- Battery / stop planning ----------
@@ -1132,8 +1407,9 @@ function renderResults({distanceKm, legs, stops, battKwh, whPerKm, startPct, cha
         <div class="v num ${finalOk?'ok':'warn'}">${finalOk ? finalPct.toFixed(0)+'%' : 'غير كافي'}</div>
       </div>
     </div>
-    <div style="padding: 0 26px 20px;">
-      <button id="startNavBtn" class="plan-btn" style="width:100%; background:#4C8BF5; color:#fff;">🧭 ابدأ الملاحة</button>
+    <div style="padding: 0 26px 20px; display:flex; gap:10px;">
+      <button id="startNavBtn" class="plan-btn" style="flex:2; background:#4C8BF5; color:#fff;">🧭 ابدأ الملاحة</button>
+      <button id="saveTripBtn" class="plan-btn" style="flex:1; background:var(--surface-2); color:var(--lime); border:1px solid var(--lime-dim);">💾 حفظ</button>
     </div>
     <div class="stops-list" id="stopsList"></div>
     <div class="disclaimer">* تقدير مبسّط بناءً على استهلاك ثابت لكل كيلومتر — من غير حساب الطقس، الرياح، الارتفاعات، أو سرعة الطريق الفعلية. استخدمه كدليل تقريبي فقط.</div>
@@ -1141,6 +1417,10 @@ function renderResults({distanceKm, legs, stops, battKwh, whPerKm, startPct, cha
 
   document.getElementById('startNavBtn').addEventListener('click', ()=>{
     startInAppNavigation(origin, dest, stops);
+  });
+
+  document.getElementById('saveTripBtn').addEventListener('click', ()=>{
+    saveCurrentTrip();
   });
 
   const stopsList = document.getElementById('stopsList');
@@ -1223,6 +1503,13 @@ document.getElementById('planBtn').addEventListener('click', async ()=>{
     setStatus('بندوّر على محطات شحن قريبة...', false);
     const chargers = await fetchChargers(route.coords);
 
+    setStatus('بندوّر على مطاعم ومستشفيات ومحلات...', false);
+    const [restaurants, hospitals, shops] = await Promise.all([
+      fetchPOI(route.coords, 'restaurant', 30, 'مطعم'),
+      fetchPOI(route.coords, 'hospital', 30, 'مستشفى'),
+      fetchPOI(route.coords, 'supermarket', 30, 'محل')
+    ]);
+
     const stopCountRaw = document.getElementById('stopCount').value;
     const forceStops = stopCountRaw === 'auto' ? null : parseInt(stopCountRaw, 10);
 
@@ -1255,6 +1542,27 @@ document.getElementById('planBtn').addEventListener('click', async ()=>{
         .bindPopup(c.name)
         .addTo(map);
       chargerMarkers.push(m);
+    });
+
+    restaurants.forEach(p=>{
+      const m = L.marker([p.lat, p.lon], {icon: poiIcon('🍽','#FF9F5A')})
+        .bindPopup(p.name)
+        .addTo(map);
+      restaurantMarkers.push(m);
+    });
+
+    hospitals.forEach(p=>{
+      const m = L.marker([p.lat, p.lon], {icon: poiIcon('🏥','#FF6B5B')})
+        .bindPopup(p.name)
+        .addTo(map);
+      hospitalMarkers.push(m);
+    });
+
+    shops.forEach(p=>{
+      const m = L.marker([p.lat, p.lon], {icon: poiIcon('🛍','#C58BFF')})
+        .bindPopup(p.name)
+        .addTo(map);
+      shopMarkers.push(m);
     });
 
     renderResults({
