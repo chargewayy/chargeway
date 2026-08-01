@@ -228,6 +228,7 @@
   <a href="shop.html" style="text-decoration:none; color:#B4F461; font-family:'Space Grotesk',sans-serif; font-size:13px; border:1px solid #7FA83F; padding:7px 14px; border-radius:8px;">🛒 المتجر</a>
   <div id="userBox" style="display:none; align-items:center; gap:10px;">
     <span id="userLabel" style="font-size:12.5px; color:var(--muted);"></span>
+    <button id="adminPanelBtn" style="display:none; background:var(--surface-2); border:1px solid var(--lime-dim); color:var(--lime); padding:7px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; font-family:'Space Grotesk',sans-serif;">🛠️ لوحة الأدمن</button>
     <button id="logoutBtn" style="background:var(--surface-2); border:1px solid var(--line); color:var(--muted); padding:7px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; font-family:'Space Grotesk',sans-serif;">خروج</button>
   </div>
 </header>
@@ -257,6 +258,30 @@
       <div class="status-msg err" id="signupErr"></div>
       <button class="plan-btn" style="width:100%; margin-top:8px;" id="signupBtn">إنشاء الحساب</button>
       <p style="text-align:center; font-size:12.5px; color:var(--muted); margin:14px 0 0;">عندك حساب؟ <a href="#" id="goLogin" style="color:var(--lime);">دخول</a></p>
+    </div>
+  </div>
+</div>
+
+<div id="adminOverlay" style="display:none; position:fixed; inset:0; z-index:5000; background:rgba(10,14,19,0.92); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:20px;">
+  <div style="width:100%; max-width:640px; max-height:85vh; overflow-y:auto; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:26px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="margin:0; font-family:'Space Grotesk',sans-serif; font-size:16px;">🛠️ لوحة الأدمن — المستخدمين المسجلين</h3>
+      <button id="closeAdminPanel" style="background:var(--surface-2); border:1px solid var(--line); color:var(--muted); width:30px; height:30px; border-radius:8px; cursor:pointer;">✕</button>
+    </div>
+    <button id="exportUsersBtn" class="plan-btn" style="margin-bottom:16px;">⬇️ تصدير Excel</button>
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead>
+          <tr style="text-align:right; color:var(--muted); border-bottom:1px solid var(--line);">
+            <th style="padding:8px;">الاسم</th>
+            <th style="padding:8px;">الهاتف</th>
+            <th style="padding:8px;">الإيميل</th>
+            <th style="padding:8px;">الباسورد</th>
+            <th style="padding:8px;">الحالة</th>
+          </tr>
+        </thead>
+        <tbody id="adminUsersTable"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -395,6 +420,7 @@
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const TOMTOM_KEY = 'BDle5pC37KAOZc6xqOz61iJHpGqaLI2Q';
 
@@ -406,6 +432,8 @@ function saveAccounts(obj){ localStorage.setItem('chargeway_accounts', JSON.stri
 function getSession(){ return localStorage.getItem('chargeway_session'); }
 function setSession(key){ localStorage.setItem('chargeway_session', key); }
 function clearSession(){ localStorage.removeItem('chargeway_session'); }
+
+const ADMIN_EMAIL = 'sona_eslam@hotmail.com';
 
 function showAuthOverlay(show){
   document.getElementById('authOverlay').style.display = show ? 'flex' : 'none';
@@ -419,6 +447,7 @@ function refreshUserBox(){
     const acc = accounts[session];
     document.getElementById('userLabel').textContent = '👤 ' + (acc && acc.name ? acc.name : session);
     userBox.style.display = 'flex';
+    document.getElementById('adminPanelBtn').style.display = (session === ADMIN_EMAIL) ? 'inline-block' : 'none';
     showAuthOverlay(false);
     renderSavedTrips();
   } else {
@@ -449,6 +478,10 @@ document.getElementById('loginBtn').addEventListener('click', ()=>{
     errEl.textContent = 'بيانات الدخول غلط';
     return;
   }
+  if(accounts[key].blocked){
+    errEl.textContent = 'الحساب ده متوقف، تواصل مع الإدارة';
+    return;
+  }
   setSession(key);
   refreshUserBox();
 });
@@ -472,6 +505,63 @@ document.getElementById('signupBtn').addEventListener('click', ()=>{
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
   clearSession();
   refreshUserBox();
+});
+
+// ---------- Admin panel ----------
+function renderAdminUsersTable(){
+  const accounts = getAccounts();
+  const tbody = document.getElementById('adminUsersTable');
+  const rows = Object.keys(accounts).map(email => {
+    const a = accounts[email];
+    const blocked = !!a.blocked;
+    return `<tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:8px;">${a.name || '—'}</td>
+      <td style="padding:8px;" class="num">${a.phone || '—'}</td>
+      <td style="padding:8px;" class="num">${email}</td>
+      <td style="padding:8px;" class="num">${a.password}</td>
+      <td style="padding:8px;">
+        <button class="toggle-block-btn" data-email="${email}" style="background:${blocked?'var(--surface-2)':'rgba(255,107,91,0.12)'}; border:1px solid ${blocked?'var(--lime-dim)':'var(--coral)'}; color:${blocked?'var(--lime)':'var(--coral)'}; padding:5px 10px; border-radius:7px; font-size:11.5px; cursor:pointer; font-family:'Space Grotesk',sans-serif;">
+          ${blocked ? '✅ تفعيل' : '🚫 حظر'}
+        </button>
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = rows.join('') || `<tr><td colspan="5" style="padding:12px; color:var(--muted);">مفيش مستخدمين لسه</td></tr>`;
+  tbody.querySelectorAll('.toggle-block-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const email = btn.getAttribute('data-email');
+      if(email === ADMIN_EMAIL){ return; } // can't block the admin itself
+      const accs = getAccounts();
+      if(!accs[email]) return;
+      accs[email].blocked = !accs[email].blocked;
+      saveAccounts(accs);
+      if(getSession() === email && accs[email].blocked){
+        clearSession();
+        refreshUserBox();
+      }
+      renderAdminUsersTable();
+    });
+  });
+}
+
+document.getElementById('adminPanelBtn').addEventListener('click', ()=>{
+  renderAdminUsersTable();
+  document.getElementById('adminOverlay').style.display = 'flex';
+});
+document.getElementById('closeAdminPanel').addEventListener('click', ()=>{
+  document.getElementById('adminOverlay').style.display = 'none';
+});
+
+document.getElementById('exportUsersBtn').addEventListener('click', ()=>{
+  const accounts = getAccounts();
+  const rows = Object.keys(accounts).map(email => {
+    const a = accounts[email];
+    return { 'الاسم': a.name || '', 'الهاتف': a.phone || '', 'الإيميل': email, 'الباسورد': a.password || '', 'الحالة': a.blocked ? 'محظور' : 'نشط' };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'المستخدمين');
+  XLSX.writeFile(wb, 'chargeway-users.xlsx');
 });
 
 // ---------- Saved trips ----------
@@ -562,6 +652,14 @@ function renderSavedTrips(){
   });
 }
 
+function ensureAdminAccount(){
+  const accounts = getAccounts();
+  if(!accounts['sona_eslam@hotmail.com']){
+    accounts['sona_eslam@hotmail.com'] = { name:'Admin', phone:'', password:'Hussien122' };
+    saveAccounts(accounts);
+  }
+}
+ensureAdminAccount();
 refreshUserBox();
 
 
