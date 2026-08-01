@@ -241,6 +241,9 @@
   .bottom-actions{ display:flex; gap:10px; margin:16px 20px 4px; }
   .bottom-actions .opt-btn{ flex:1; background:var(--surface-2); border:1px solid var(--line); color:var(--text); padding:13px; border-radius:12px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif; }
   .bottom-actions .drive-btn{ flex:2; background:#fff; color:#0E141B; border:none; padding:13px; border-radius:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-size:14.5px; }
+
+  .nav-icon-btn{ background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; font-family:'Space Grotesk',sans-serif; }
+  .nav-icon-btn div{ font-size:10.5px; }
 </style>
 </head>
 <body>
@@ -399,46 +402,86 @@
   <div class="main" style="position:relative;">
     <div id="map"></div>
 
-    <div id="navPanel" style="display:none; position:fixed; top:12px; left:12px; right:12px; z-index:2000; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.5);">
-      <div id="navCurrentStreet" style="font-size:11px; color:var(--muted); margin-bottom:8px;">📍 الشارع الحالي: —</div>
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-        <div>
-          <div id="navNextTurn" style="font-size:14.5px; color:var(--text); font-weight:700; font-family:'Space Grotesk',sans-serif;">استمر على الطريق الحالي</div>
-          <div class="num" id="navTurnDist" style="font-size:14px; color:var(--amber);">-- م</div>
+    <div id="navTopCard" style="display:none; position:fixed; top:0; left:0; right:0; z-index:2000; background:#2F6FE0; padding:18px 20px 0; border-radius:0 0 18px 18px; box-shadow:0 8px 24px rgba(0,0,0,0.45);">
+      <div style="display:flex; align-items:center; gap:16px; padding-bottom:16px;">
+        <div id="navTurnArrow" style="font-size:44px; color:#fff; flex-shrink:0; line-height:1;">↑</div>
+        <div style="flex:1; min-width:0; text-align:center;">
+          <div id="navTurnStreetTop" style="color:#fff; font-size:17px; font-weight:700;">—</div>
+          <div class="num" id="navTurnDistTop" style="color:#fff; font-size:26px; font-weight:800;">-- م</div>
         </div>
-        <button id="endNavBtn" style="background:var(--coral); border:none; color:#fff; padding:9px 16px; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif; flex-shrink:0;">إنهاء</button>
+        <button id="endNavBtn" style="background:rgba(0,0,0,0.25); border:none; color:#fff; width:32px; height:32px; border-radius:50%; font-size:14px; cursor:pointer; flex-shrink:0;">✕</button>
       </div>
-      <div style="height:1px; background:var(--line); margin:10px 0;"></div>
-      <div style="display:flex; justify-content:space-between; text-align:center;">
-        <div style="flex:1;">
-          <div style="font-size:10px;color:var(--muted);">المتبقي</div>
-          <div class="num" id="navRemainKm" style="font-size:15px; font-weight:700;">-- كم</div>
-        </div>
-        <div style="flex:1; border-right:1px solid var(--line); border-left:1px solid var(--line);">
-          <div style="font-size:10px;color:var(--muted);">الوقت</div>
-          <div class="num" id="navRemainTime" style="font-size:15px; font-weight:700;">--</div>
-        </div>
-        <div style="flex:1;">
-          <div style="font-size:10px;color:var(--muted);">هنوصل الساعة</div>
-          <div class="num" id="navEta" style="font-size:15px; font-weight:700; color:var(--lime);">--:--</div>
-        </div>
+      <div id="navThenRow" style="display:none; margin:0 -20px; background:rgba(0,0,0,0.18); padding:9px 20px; align-items:center; gap:10px;">
+        <span style="color:#cfe0ff; font-size:11.5px;">then</span>
+        <span id="navThenArrow" style="font-size:16px; color:#fff;">→</span>
+        <span id="navThenStreet" style="color:#cfe0ff; font-size:11.5px;"></span>
       </div>
-      <div style="height:1px; background:var(--line); margin:10px 0;"></div>
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="font-size:11px;color:var(--muted);" id="navNextLabel">التالي: —</div>
-        <div class="num" style="font-size:16px; font-weight:700; color:var(--lime);" id="navDist">-- كم</div>
+    </div>
+
+    <div id="navBottomSheet" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:2000; background:#0E141B; border:1px solid var(--line); border-bottom:none; border-radius:18px 18px 0 0; padding:12px 18px 14px; box-shadow:0 -10px 30px rgba(0,0,0,0.5); max-height:60vh; overflow-y:auto;">
+      <div class="sheet-handle"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; text-align:center; margin-bottom:12px;">
+        <div style="flex:1;">
+          <div class="num" id="navEta" style="font-size:19px; font-weight:700;">--:--</div>
+          <div style="font-size:10.5px; color:var(--muted);">وقت الوصول</div>
+        </div>
+        <div style="flex:1;">
+          <div class="num" id="navRemainTime" style="font-size:19px; font-weight:700;">--</div>
+          <div style="font-size:10.5px; color:var(--muted);">المدة</div>
+        </div>
+        <div style="flex:1;">
+          <div class="num" id="navRemainKm" style="font-size:19px; font-weight:700;">--</div>
+          <div style="font-size:10.5px; color:var(--muted);">المسافة</div>
+        </div>
       </div>
 
-      <button id="navArriveBtn" style="display:none; width:100%; margin-top:10px; background:var(--lime); color:#0E141B; border:none; padding:10px; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif;">📍 وصلت للشاحن</button>
+      <div style="margin-bottom:10px;">
+        <div style="height:8px; border-radius:4px; background:linear-gradient(90deg, #FF3B30, #FFC15E, #B4F461); position:relative;">
+          <div id="navBattMarker" style="position:absolute; top:-4px; width:3px; height:16px; background:#fff; border-radius:2px; left:0%;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:4px;">
+          <span class="num" id="navReserveLabel" style="font-size:11px; color:var(--coral);">--%</span>
+          <span class="num" id="navCurrentBattLabel" style="font-size:11px; color:#fff;">--%</span>
+        </div>
+      </div>
 
-      <div id="navChargingCard" style="display:none; margin-top:10px; background:var(--surface-2); border:1px solid var(--lime-dim); border-radius:10px; padding:12px; text-align:center;">
+      <div id="navStopProgress" style="font-size:12px; color:var(--muted); margin-bottom:8px;"></div>
+
+      <div id="navStopCard" style="display:none; background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; align-items:center; gap:10px; margin-bottom:10px;">
+        <div style="flex:1; min-width:0;">
+          <div id="navStopName" style="font-size:13.5px; font-weight:700; color:#fff;">—</div>
+          <div style="display:flex; gap:14px; margin-top:6px; font-size:11.5px; color:var(--muted); flex-wrap:wrap;">
+            <span id="navStopBatt">🔋 --%→--%</span>
+            <span id="navStopChargeTime">⏳ -- دقيقة</span>
+          </div>
+        </div>
+        <div style="width:48px; height:48px; border-radius:50%; border:3px solid var(--lime); display:flex; align-items:center; justify-content:center; font-size:9.5px; color:var(--lime); text-align:center; flex-shrink:0;">50 kW</div>
+      </div>
+
+      <button id="navArriveBtn" style="display:none; width:100%; margin-bottom:10px; background:var(--lime); color:#0E141B; border:none; padding:11px; border-radius:10px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif;">📍 وصلت للشاحن</button>
+
+      <div id="navChargingCard" style="display:none; margin-bottom:10px; background:var(--surface-2); border:1px solid var(--lime-dim); border-radius:10px; padding:12px; text-align:center;">
         <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⚡ جاري الشحن</div>
         <div class="num" id="navChargingTime" style="font-size:24px; font-weight:700; color:var(--lime);">--:--</div>
         <button id="navFinishChargeBtn" style="margin-top:10px; width:100%; background:#4C8BF5; color:#fff; border:none; padding:9px; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif;">✅ خلصت الشحن، كمل الرحلة</button>
       </div>
+
+      <div style="display:flex; align-items:center; gap:6px; margin:6px 0 10px;">
+        <span style="font-size:13px;">🚗</span>
+        <div style="flex:1; height:2px; background:repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 8px);"></div>
+        <span style="font-size:15px;">🔌</span>
+        <div style="flex:1; height:2px; background:repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 8px);"></div>
+        <span style="font-size:15px;">🏁</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-around; padding-top:8px; border-top:1px solid var(--line);">
+        <button class="nav-icon-btn" id="navGraphBtn">📊<div>Graph</div></button>
+        <button class="nav-icon-btn" id="navShareBtn2">🔗<div>مشاركة</div></button>
+        <button class="nav-icon-btn" id="navSettingsBtn2">⚙️<div>خيارات</div></button>
+      </div>
     </div>
 
-    <div id="navToast" style="display:none; position:fixed; bottom:16px; left:16px; right:16px; z-index:2000; background:#1A73E8; color:#fff; padding:14px 18px; border-radius:14px; font-weight:700; text-align:right; font-family:'Space Grotesk',sans-serif; font-size:14.5px; line-height:1.5; box-shadow:0 10px 30px rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15);"></div>
+    <div id="navToast" style="display:none; position:fixed; bottom:16px; left:16px; right:16px; z-index:2500; background:#1A73E8; color:#fff; padding:14px 18px; border-radius:14px; font-weight:700; text-align:right; font-family:'Space Grotesk',sans-serif; font-size:14.5px; line-height:1.5; box-shadow:0 10px 30px rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15);"></div>
 
     <div id="resultsArea">
       <div class="empty" id="emptyState">
@@ -981,6 +1024,22 @@ function finishCharging(){
 document.getElementById('navArriveBtn').addEventListener('click', showChargingScreen);
 document.getElementById('navFinishChargeBtn').addEventListener('click', finishCharging);
 
+document.getElementById('navGraphBtn').addEventListener('click', ()=>{
+  showNavToast('📊 رسم بياني تفصيلي للطاقة قريبًا');
+});
+document.getElementById('navShareBtn2').addEventListener('click', async ()=>{
+  const text = 'بتابع رحلتي على ChargeWay دلوقتي 🚗⚡';
+  if(navigator.share){
+    try{ await navigator.share({ title:'ChargeWay', text }); }catch(e){ /* cancelled */ }
+  } else {
+    try{ await navigator.clipboard.writeText(text); showNavToast('اتنسخ رابط المشاركة'); }catch(e){}
+  }
+});
+document.getElementById('navSettingsBtn2').addEventListener('click', ()=>{
+  stopInAppNavigation();
+  document.querySelector('.panel').scrollIntoView({behavior:'smooth'});
+});
+
 function currentPosIcon(){
   return L.divIcon({
     className:'',
@@ -1027,9 +1086,21 @@ function fireNavAlert(msg){
 }
 
 function updateNavPanel(wp, distM){
-  document.getElementById('navNextLabel').textContent =
-    'التالي: ' + (wp.kind === 'stop' ? 'محطة شحن' : 'الوجهة');
-  document.getElementById('navDist').textContent = fmtDist(distM);
+  const stopIdx = navWaypoints.filter(w => w.kind === 'stop').length; // total stops count
+  const currentStopNum = navWaypoints.slice(0, navIndex+1).filter(w => w.kind === 'stop').length;
+  document.getElementById('navStopProgress').textContent = stopIdx > 0
+    ? `توقف ${Math.min(currentStopNum || 1, stopIdx)}/${stopIdx}`
+    : 'مفيش توقف مطلوب';
+
+  const stopCard = document.getElementById('navStopCard');
+  if(wp.kind === 'stop'){
+    stopCard.style.display = 'flex';
+    document.getElementById('navStopName').textContent = wp.chargerName || '🔌 محطة شحن على الطريق';
+    document.getElementById('navStopBatt').textContent = `🔋 ${Math.round(wp.arrivePct)}%→${Math.round(wp.chargeToPct)}%`;
+    document.getElementById('navStopChargeTime').textContent = `⏳ ${Math.round(wp.chargeMinutes)} دقيقة`;
+  } else {
+    stopCard.style.display = 'none';
+  }
 }
 
 // find index of the nearest point on navRouteCoords to (lat,lon), and the distance to it in meters
@@ -1042,21 +1113,55 @@ function nearestRoutePoint(lat, lon){
   return { idx: bestIdx, distM: bestDist * 1000 };
 }
 
+function maneuverArrow(maneuver){
+  if(!maneuver) return '↑';
+  const m = maneuver.toUpperCase();
+  if(m.includes('UTURN')) return '↶';
+  if(m.includes('ROUNDABOUT')) return '⟳';
+  if(m.includes('ARRIVE')) return '🏁';
+  if(m.includes('LEFT')) return '↰';
+  if(m.includes('RIGHT')) return '↱';
+  return '↑';
+}
+
 function updateTurnByTurn(traveledM){
-  let current = null, next = null;
+  let current = null, next = null, afterNext = null;
   for(let i=0;i<navInstructions.length;i++){
     if(navInstructions[i].offsetM <= traveledM) current = navInstructions[i];
-    else { next = navInstructions[i]; break; }
+    else if(!next) next = navInstructions[i];
+    else { afterNext = navInstructions[i]; break; }
   }
-  document.getElementById('navCurrentStreet').textContent =
-    '📍 الشارع الحالي: ' + (current && current.street ? current.street : '—');
+
   if(next){
-    document.getElementById('navNextTurn').textContent = next.message || (next.street ? 'اتجه نحو ' + next.street : 'استمر على الطريق');
-    document.getElementById('navTurnDist').textContent = 'بعد ' + fmtDist(Math.max(0, next.offsetM - traveledM));
+    document.getElementById('navTurnArrow').textContent = maneuverArrow(next.maneuver);
+    document.getElementById('navTurnStreetTop').textContent = next.street || (next.message || 'استمر على الطريق');
+    document.getElementById('navTurnDistTop').textContent = fmtDist(Math.max(0, next.offsetM - traveledM));
   } else {
-    document.getElementById('navNextTurn').textContent = 'استمر على الطريق حتى الوجهة';
-    document.getElementById('navTurnDist').textContent = '';
+    document.getElementById('navTurnArrow').textContent = '🏁';
+    document.getElementById('navTurnStreetTop').textContent = 'استمر حتى الوجهة';
+    document.getElementById('navTurnDistTop').textContent = '';
   }
+
+  const thenRow = document.getElementById('navThenRow');
+  if(afterNext){
+    thenRow.style.display = 'flex';
+    document.getElementById('navThenArrow').textContent = maneuverArrow(afterNext.maneuver);
+    document.getElementById('navThenStreet').textContent = afterNext.street || '';
+  } else {
+    thenRow.style.display = 'none';
+  }
+
+  // battery gradient marker + labels
+  const battInput = document.getElementById('battKwh');
+  const consInput = document.getElementById('consWh');
+  const kmPerPct = (parseFloat(battInput.value)*1000/parseFloat(consInput.value))/100;
+  const reservePct = +document.getElementById('reservePct').value;
+  const startPct = +document.getElementById('startPct').value;
+  const traveledKm = traveledM/1000;
+  const currentPct = Math.max(0, startPct - traveledKm/kmPerPct);
+  document.getElementById('navBattMarker').style.left = Math.min(100, Math.max(0, currentPct)) + '%';
+  document.getElementById('navReserveLabel').textContent = reservePct + '%';
+  document.getElementById('navCurrentBattLabel').textContent = Math.round(currentPct) + '%';
 
   if(navTotalDistanceKm > 0){
     const remainKm = Math.max(0, navTotalDistanceKm - traveledM/1000);
@@ -1155,13 +1260,18 @@ function onNavError(){
   showNavToast('مقدرناش نتتبع موقعك، تأكد من إذن الموقع.');
 }
 
-async function startInAppNavigation(origin, dest, stops){
+async function startInAppNavigation(origin, dest, stops, chargers){
   const battKwh = parseFloat(document.getElementById('battKwh').value) || 0;
   const ASSUMED_CHARGE_KW = 50;
-  navWaypoints = stops.map(s => ({
-    lat:s.point[0], lon:s.point[1], kind:'stop',
-    chargeMinutes: ((s.chargeToPct - s.arrivePct)/100 * battKwh) / ASSUMED_CHARGE_KW * 60
-  })).concat([{lat:dest.lat, lon:dest.lon, kind:'dest'}]);
+  navWaypoints = stops.map(s => {
+    const nearest = (chargers && chargers.length) ? nearestCharger(s.point, chargers) : null;
+    return {
+      lat:s.point[0], lon:s.point[1], kind:'stop',
+      arrivePct: s.arrivePct, chargeToPct: s.chargeToPct,
+      chargerName: nearest ? nearest.name : null,
+      chargeMinutes: ((s.chargeToPct - s.arrivePct)/100 * battKwh) / ASSUMED_CHARGE_KW * 60
+    };
+  }).concat([{lat:dest.lat, lon:dest.lon, kind:'dest'}]);
   navIndex = 0;
   navAlertState = {};
   // stopMarkers = [startMarker, endMarker, stop1, stop2, ...] -> align with navWaypoints order (stops..., dest)
@@ -1173,10 +1283,10 @@ async function startInAppNavigation(origin, dest, stops){
     try{ await Notification.requestPermission(); }catch(e){ /* ignore */ }
   }
 
-  document.getElementById('navPanel').style.display = 'block';
-  document.getElementById('navCurrentStreet').textContent = '📍 الشارع الحالي: جاري التحميل...';
-  document.getElementById('navNextTurn').textContent = 'جاري تجهيز الاتجاهات...';
-  document.getElementById('navTurnDist').textContent = '';
+  document.getElementById('navTopCard').style.display = 'block';
+  document.getElementById('navBottomSheet').style.display = 'block';
+  document.getElementById('navTurnStreetTop').textContent = 'جاري تجهيز الاتجاهات...';
+  document.getElementById('navTurnDistTop').textContent = '';
 
   document.body.classList.add('nav-fullscreen');
   setTimeout(()=> map.invalidateSize(), 150);
@@ -1214,7 +1324,8 @@ async function startInAppNavigation(origin, dest, stops){
 function stopInAppNavigation(){
   if(navWatchId !== null){ navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
   clearInterval(navChargingInterval);
-  document.getElementById('navPanel').style.display = 'none';
+  document.getElementById('navTopCard').style.display = 'none';
+  document.getElementById('navBottomSheet').style.display = 'none';
   document.getElementById('navToast').style.display = 'none';
   document.getElementById('navChargingCard').style.display = 'none';
   document.getElementById('navArriveBtn').style.display = 'none';
@@ -1670,7 +1781,7 @@ function renderResults({distanceKm, totalTimeSec, legs, stops, battKwh, whPerKm,
   `;
 
   document.getElementById('startNavBtn').addEventListener('click', ()=>{
-    startInAppNavigation(origin, dest, stops);
+    startInAppNavigation(origin, dest, stops, chargers);
   });
 
   document.getElementById('saveTripBtn').addEventListener('click', ()=>{
