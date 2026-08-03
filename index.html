@@ -567,9 +567,15 @@ const firebaseConfig = {
   appId: "1:284806732745:web:967c67df7d3072ae75a618",
   measurementId: "G-0HYXTY1PPY"
 };
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+let auth = null, db = null, firebaseReady = false;
+try{
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  firebaseReady = true;
+}catch(e){
+  console.error('Firebase init failed:', e);
+}
 let currentUserDoc = null; // cached Firestore profile of the signed-in user
 
 const ADMIN_EMAIL = 'sona_eslam@hotmail.com';
@@ -588,8 +594,4 @@ function applyTheme(mode){
 const I18N = {
   ar: {
     tagline: 'مخطط رحلات ذكي للسيارات الكهربائية',
-    shopLink: '🛒 المتجر',
-    logout: 'خروج',
-    loginTitle: 'تسجيل الدخول',
-    loginIdLabel: 'الإيميل أو رقم الهاتف',
-    passwordLabel: 'كلمة ا
+    shopLink: '
