@@ -447,6 +447,26 @@
   <div class="main" style="position:relative;">
     <div id="map"></div>
 
+    <div id="chargerDetailSheet" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:3000; background:var(--surface); border:1px solid var(--line); border-bottom:none; border-radius:18px 18px 0 0; padding:14px 18px 20px; box-shadow:0 -10px 30px rgba(0,0,0,0.5); max-height:70vh; overflow-y:auto;">
+      <div style="width:36px; height:4px; background:var(--line); border-radius:2px; margin:0 auto 12px;"></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div>
+          <h3 id="chgName" style="margin:0 0 4px; font-family:'Space Grotesk',sans-serif; font-size:17px;">—</h3>
+          <div id="chgAddress" style="font-size:12.5px; color:var(--muted);">—</div>
+        </div>
+        <button id="closeChargerDetail" style="background:var(--surface-2); border:1px solid var(--line); color:var(--muted); width:30px; height:30px; border-radius:8px; cursor:pointer; flex-shrink:0;">✕</button>
+      </div>
+
+      <div id="chgLiveStatus" style="margin-top:14px; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted);">
+        <span id="chgStatusDot" style="width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0;"></span>
+        <span id="chgStatusText">جاري تحميل حالة الشحن...</span>
+      </div>
+
+      <div id="chgConnectors" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
+
+      <button id="chgDirectionsBtn" style="width:100%; margin-top:16px; background:var(--lime); border:none; color:#0E141B; padding:12px; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; font-family:'Space Grotesk',sans-serif;">🧭 الاتجاهات لهذا الشاحن</button>
+    </div>
+
     <div id="navTopCard" style="display:none; position:fixed; top:0; left:0; right:0; z-index:2000; background:#2F6FE0; padding:18px 20px 0; border-radius:0 0 18px 18px; box-shadow:0 8px 24px rgba(0,0,0,0.45);">
       <div style="display:flex; align-items:center; gap:16px; padding-bottom:16px;">
         <div id="navTurnArrow" style="font-size:44px; color:#fff; flex-shrink:0; line-height:1;">↑</div>
@@ -550,48 +570,4 @@
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script>
-const TOMTOM_KEY = 'BDle5pC37KAOZc6xqOz61iJHpGqaLI2Q';
-
-// ---------- Firebase (shared account/trip data across all devices) ----------
-const firebaseConfig = {
-  apiKey: "AIzaSyDJhhynpDnIPE_jjOmZe0N8F9oC0TF0ZVo",
-  authDomain: "chargeway-2bedc.firebaseapp.com",
-  projectId: "chargeway-2bedc",
-  storageBucket: "chargeway-2bedc.firebasestorage.app",
-  messagingSenderId: "284806732745",
-  appId: "1:284806732745:web:967c67df7d3072ae75a618",
-  measurementId: "G-0HYXTY1PPY"
-};
-let auth = null, db = null, firebaseReady = false;
-try{
-  firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
-  db = firebase.firestore();
-  firebaseReady = true;
-}catch(e){
-  console.error('Firebase init failed:', e);
-}
-let currentUserDoc = null; // cached Firestore profile of the signed-in user
-
-const ADMIN_EMAIL = 'sona_eslam@hotmail.com';
-
-// ---------- Theme ----------
-function applyTheme(mode){
-  const isLight = mode === 'light' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
-  document.body.classList.toggle('theme-light', isLight);
-  document.querySelectorAll('.theme-opt-btn').forEach(b=>{
-    b.classList.toggle('active', b.getAttribute('data-theme') === mode);
-  });
-  localStorage.setItem('chargeway_theme', mode);
-}
-
-// ---------- Language ----------
-const I18N = {
-  ar: {
-    tagline: 'مخطط رحلات ذكي للسيارات الكهربائية',
-    shopLink: '
+<script src="https://cdnjs.cloud
